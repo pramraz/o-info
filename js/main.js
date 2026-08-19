@@ -13,7 +13,7 @@ if (dateTo) dateTo.addEventListener('change', activateCustomRadio);
 // Přepínač tématu: načte uložené nastavení, respektuje systémovou preferenci, přepíná kliknutím
 const toggle = document.getElementById("themeToggle");
 
-// načtení uloženého tématu
+// načtení uloženého tématu 123
 const savedTheme = localStorage.getItem("theme");
 
 if (toggle) {
