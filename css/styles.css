@@ -1,0 +1,461 @@
+/* =========================
+DARK MODE
+========================= */
+
+/* DARK */
+body.dark {
+  background: #121212;
+  color: #eee;
+}
+
+/* komponenty */
+body.dark .card {
+  background: #1e1e1e;
+  border: 1px solid #808080
+}
+
+body.dark input,
+body.dark select {
+  background: #1e1e1e;
+  color: #eee;
+  border: 1px solid #444;
+}
+
+
+/* tlačítko přepínání tématu */
+.theme-toggle {
+  font-size: 18px;
+  width: 50px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background: #f0f0f0;
+}
+
+/* DARK mod pro tlacitko */
+body.dark .theme-toggle {
+  background: #1e1e1e;
+  border-color: #444;
+  color: #eee;
+}
+
+body.dark .card-label {
+  color: #eee;
+}
+
+/* TABULKA DARK MODE FIX */
+body.dark table {
+  background: #1e1e1e;
+}
+
+/* hlavička */
+body.dark thead th {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+/* buňky */
+body.dark tbody td {
+  border-bottom: 1px solid #333;
+}
+
+/* odkazy */
+body.dark table a {
+  color: #4da3ff;
+}
+
+body.dark .alternating td {
+  background: #252525;
+}
+
+body.dark .card-section {
+  border-top-color: #333;
+}
+
+body.dark hr {
+  border-top-color: #333;
+}
+
+body.dark .hint-note {
+  color: #aaa;
+}
+
+/* =========================
+BASE LAYOUT
+========================= */
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  margin: 0;
+  padding: 6px 60px;
+  background: #f5f7fa;
+  color: #222;
+}
+
+.site-title {
+  position: relative;
+  text-align: center;
+  margin: 0;
+}
+
+.site-title img {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-100px);
+  width: 40px;
+}
+
+h1 {
+  margin-bottom: 6px;
+}
+
+.input-select {
+  margin-bottom: 6px;
+}
+
+span,
+.details {
+  font-size: 14px;
+}
+
+.help-box {
+  margin: 10px 0;
+}
+
+.help-box summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: inherit;
+  user-select: none;
+}
+
+.help-box summary:hover {
+  text-decoration: underline;
+}
+
+.help-box p {
+  margin: 8px 0;
+}
+
+.hint-note {
+  font-size: 0.9em;
+  color: #777;
+  margin-top: 8px;
+}
+
+hr {
+  margin: 6px 0;
+  border: none;
+  border-top: 1px solid #ddd;
+}
+
+.footer {
+  font-size: 10px;
+}
+
+/* =========================
+FORM ELEMENTS
+========================= */
+input,
+select {
+  max-width: 400px;
+  padding: 10px 12px;
+  margin: 3px 0;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+
+#clubSelect,
+#historySelect {
+  max-width: 200px;
+}
+
+input::placeholder {
+  font-size: 12px;
+}
+
+#mainInput {
+  width: 280px;
+}
+
+button {
+  width: 120px;
+  padding: 10px 12px;
+  margin: 6px 0;
+  font-size: 14px;
+  border-radius: 8px;
+  border: none;
+  box-sizing: border-box;
+  background: #4a90e2;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s;
+}
+
+button:hover {
+  background: #357abd;
+}
+
+button:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+/* =========================
+TABLE
+========================= */
+
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  display: block;
+  overflow: hidden;
+}
+
+td,
+th {
+  padding: 8px 10px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+td:nth-child(3) {
+  max-width: 200px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.date-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.weekday {
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.place-cell {
+  max-width: 220px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.name-cell {
+  max-width: 180px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.map-cell {
+  text-align: center;
+  width: 34px;
+}
+
+.map-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+
+thead {
+  background: #eef2f7;
+}
+
+th {
+  font-weight: 600;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+th:first-child {
+  text-align: center;
+}
+
+td {
+  border-bottom: 1px solid #eee;
+}
+
+.alternating td {
+  background: #f3f6fa;
+}
+
+/* =========================
+LINKS
+========================= */
+a {
+  color: #2a6fd6;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+td a {
+  display: inline-block;
+  margin: 2px 0;
+}
+
+/* =========================
+LOADING + SPINNER
+========================= */
+#loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  margin-top: 10px;
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top: 3px solid #4a90e2;
+  border-right: 3px solid #4a90e2;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================
+CARDS (mobile)
+========================= */
+.cards-container {
+  display: none;
+  margin-top: 16px;
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.card-header {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.card-event-name {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.card-section {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #eee;
+  font-size: 14px;
+}
+
+.card a {
+  font-weight: 500;
+}
+
+body.dark .card-value {
+  color: #00CED1;
+}
+
+.card-sub {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.card-value {
+  color: #c204cc;
+}
+
+/* =========================
+RADIOBUTTONS
+========================= */
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  cursor: pointer;
+}
+
+label {
+  display: block;
+  margin-top: 8px;
+}
+
+/* =========================
+RESPONSIVE
+========================= */
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+
+  .date-range {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .date-range input {
+    width: auto;
+  }
+
+  #resultsTable {
+    display: none !important;
+  }
+
+  .cards-container {
+    display: block;
+  }
+
+  th,
+  td {
+    font-size: 13px;
+    padding: 6px;
+  }
+
+  input,
+  select,
+  button {
+    font-size: 15px;
+  }
+}

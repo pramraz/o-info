@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <title>O-platby</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    textarea { width: 100%; height: 200px; margin-top: 10px; }
+    h2 { margin-top: 30px; }
+    .info { margin-top: 10px; font-size: 14px; color: #555; }
+    button { margin-top: 10px; margin-right: 10px; }
+  </style>
+</head>
+<body>
+<p>Přejít na <a href="https://o-info.cz">O-info</a></p>
+<h1>O-platby</h1>
+<p>✅ Aplikace pro vytvoření seznamu plateb za ČSOS závody pro následné vložení do ORISu.<br/>✅ Nahrajte výpis plateb z banky (formát .csv) a výsledný seznam vložte do ORISu (zadání plateb u závodu).<br/>✅ Data se nikam neposílají, vše zpracovává váš prohlížeč.<br/>⚠️ Zpracování plateb může obsahovat chyby, nahráváte i kopírujete na vlastní zodpovědnost.</p>
+<input type="file" id="fileInput" accept=".csv" />
+<br/><br/>
+<label><input type="radio" name="bank" value="fio" checked> Fio</label>
+<label><input type="radio" name="bank" value="mbank"> mBank</label>
+<br/><br/>
+
+<label>Zpracovat od data:</label>
+<input type="date" id="fromDate" />
+<label> (když není vyplněno datum, zpracuje se celý soubor)</label>
+<br/>
+<button onclick="processFile()">Zpracuj</button>
+
+<div class="info" id="debugInfo"></div>
+
+<h2>✅ Platby pro ORIS</h2>
+<button onclick="copyToClipboard('validOutput')">Kopíruj do schránky</button>
+<textarea id="validOutput"></textarea>
+
+<h2>⚠️Podezřelé platby</h2>
+<p>Ostatní připsané platby na účet - pro kontrolu</p>
+<button onclick="copyToClipboard('suspiciousOutput')">Kopíruj do schránky</button>
+<textarea id="suspiciousOutput"></textarea>
+
+<h2>💳 Platby přes Revolut</h2>
+<p>Pouze předpokládané na základě 10místného VS, je nutné znotrolovat - typicky od cizinců</p>
+<button onclick="copyToClipboard('revolutOutput')">Kopíruj do schránky</button>
+<textarea id="revolutOutput"></textarea>
+
+<script>
+let fileContent = "";
+
+document.getElementById('fileInput').addEventListener('change', function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    fileContent = e.target.result;
+    if (fileContent.charCodeAt(0) === 0xFEFF) {
+      fileContent = fileContent.slice(1);
+    }
+  };
+  // try UTF-8 first, fallback to Windows-1250
+  reader.readAsText(file, 'utf-8');
+
+  reader.onerror = function() {
+    const reader2 = new FileReader();
+    reader2.onload = function(e2) {
+      fileContent = e2.target.result;
+    };
+    reader2.readAsText(file, 'windows-1250');
+  };
+});
+
+function getSelectedBank() {
+  return document.querySelector('input[name="bank"]:checked').value;
+}
+
+function processFile() {
+  if (!fileContent) {
+    alert('Nejprve nahraj soubor');
+    return;
+  }
+
+  const bank = getSelectedBank();
+  const fromDateInput = document.getElementById('fromDate').value;
+  let fromDate = fromDateInput ? new Date(fromDateInput) : null;
+
+  const lines = fileContent.split(/\r?\n/);
+
+  let valid = [];
+  let suspicious = [];
+  let revolut = [];
+
+  let processed = 0;
+
+  if (bank === 'fio') {
+    for (let i = 1; i < lines.length; i++) {
+      const rawLine = lines[i];
+      if (!rawLine || !rawLine.trim()) continue;
+
+      const cols = rawLine.match(/("[^"]*"|[^;]+)/g)?.map(c => c.replace(/^"|"$/g, '')) || [];
+      if (cols.length < 7) continue;
+
+      let datum = cols[0];
+      let objem = cols[1];
+      let zprava = cols[5] || '';
+      let vs = cols[6] || '';
+
+      const amount = parseFloat(objem.replace(',', '.'));
+      if (isNaN(amount) || amount <= 0) continue;
+
+vs = vs.trim();
+
+// odstraní nuly na začátku, ale nechá alespoň jednu číslici
+vs = vs.replace(/^0+(?=\d)/, '');
+
+      let formattedDate = "";
+      let dateObj = null;
+
+      if (datum.includes('.')) {
+        const [d, m, y] = datum.split('.');
+        if (y) {
+          formattedDate = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+          dateObj = new Date(`${y}-${m}-${d}`);
+        }
+      }
+
+      if (fromDate && dateObj && dateObj < fromDate) continue;
+
+      pushLine(formattedDate, vs, amount, zprava);
+    }
+  }
+
+  if (bank === 'mbank') {
+    let headerIndex = -1;
+
+    // find header row dynamically
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('#VS')) {
+        headerIndex = i;
+        break;
+      }
+    }
+
+    if (headerIndex === -1) {
+      alert('Nepodařilo se najít hlavičku mBank CSV');
+      return;
+    }
+
+    for (let i = headerIndex + 1; i < lines.length; i++) {
+      const rawLine = lines[i];
+      if (!rawLine || !rawLine.trim()) continue;
+
+      const cols = rawLine.split(';').map(c =>
+  c.replace(/^"|"$/g, '')
+   .replace(/^'+|'+$/g, '')
+   .trim()
+);
+      if (cols.length < 10) continue;
+
+      let datum = cols[1]; // Datum uskutečnění
+      let zprava = cols[3] || '';
+      let vs = cols[7] || '';
+      let objem = cols[9] || '';
+
+      // normalize amount (remove spaces, comma -> dot)
+      objem = objem.replace(/\s/g, '').replace(',', '.');
+      const amount = parseFloat(objem);
+      if (isNaN(amount) || amount <= 0) continue;
+
+vs = vs.trim();
+
+// odstraní nuly na začátku, ale nechá alespoň jednu číslici
+vs = vs.replace(/^0+(?=\d)/, '');
+
+      let formattedDate = "";
+      let dateObj = null;
+
+      if (datum.includes('-')) {
+        const [d, m, y] = datum.split('-');
+        if (y) {
+          formattedDate = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+          dateObj = new Date(`${y}-${m}-${d}`);
+        }
+      }
+
+      if (fromDate && dateObj && dateObj < fromDate) continue;
+
+      pushLine(formattedDate, vs, amount, zprava);
+    }
+  }
+
+  function pushLine(date, vs, amount, zprava) {
+    const lineOutput = `${date};${vs};${amount};;${zprava}`;
+    processed++;
+
+    if (/^\d{10}$/.test(vs)) {
+      revolut.push(lineOutput);
+    } else if (vs.startsWith('11') && vs.length >= 6) {
+      valid.push(lineOutput);
+    } else {
+      suspicious.push(lineOutput);
+    }
+  }
+
+  document.getElementById('validOutput').value = valid.join('\n');
+  document.getElementById('suspiciousOutput').value = suspicious.join('\n');
+  document.getElementById('revolutOutput').value = revolut.join('\n');
+
+  document.getElementById('debugInfo').innerText =
+    `Zpracováno řádků: ${processed} | ORIS: ${valid.length} | Revolut: ${revolut.length} | Podezřelé: ${suspicious.length}`;
+}
+
+function copyToClipboard(elementId) {
+  const textarea = document.getElementById(elementId);
+  textarea.select();
+  document.execCommand('copy');
+}
+</script>
+
+</body>
+</html>
+
