@@ -558,6 +558,39 @@ function saveRegs(input) {
 }
 
 // Vrátí {from, to} podle aktuálně vybraného přepínače období
+// Precte vstup z URL. Podporuje ?q=SJC8102,SJC8351 i zkracene ?SJC8102,SJC8351
+function getInputFromUrl() {
+    const search = window.location.search.slice(1);
+    const hash = window.location.hash.slice(1);
+
+    if (search) {
+        const params = new URLSearchParams(search);
+        const namedValue = params.get("q") || params.get("search") || params.get("input") || params.get("regs");
+
+        if (namedValue) {
+            return normalizeUrlInput(namedValue);
+        }
+
+        if (!search.includes("=")) {
+            return normalizeUrlInput(search);
+        }
+    }
+
+    if (hash && !hash.includes("=")) {
+        return normalizeUrlInput(hash);
+    }
+
+    return "";
+}
+
+function normalizeUrlInput(value) {
+    return decodeURIComponent(value)
+        .replace(/\+/g, " ")
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, "");
+}
+
 function getEventDateRange() {
     const today = new Date();
 
@@ -713,7 +746,7 @@ function renderEventOptions(events) {
 
 
 // Vstupní bod: ověří formát vstupu a odešle do správné načítací funkce
-function handleLoad() {
+async function handleLoad() {
     const inputRaw = document.getElementById("mainInput").value.trim().toUpperCase();
     const input = inputRaw.replace(/ /g, "");
     const selectedPeriod = document.querySelector('input[name="period"]:checked')?.value;
@@ -727,6 +760,8 @@ function handleLoad() {
 
     // KLUB
     if (isClub) {
+        await clubsReady;
+        selectClubByAbbr(input);
         const club = findClubByAbbr(input);
         if (!club) return alert("Klub v ČSOS neexistuje");
 
@@ -761,7 +796,7 @@ let clubsCache = [];
 
 
 // Načte seznam všech klubů ČSOS při startu; naplní výběrový seznam a cache
-fetch("https://oris.ceskyorientak.cz/API/?format=json&method=getCSOSClubList")
+const clubsReady = fetch("https://oris.ceskyorientak.cz/API/?format=json&method=getCSOSClubList")
     .then(res => res.json())
     .then(json => {
         const clubs = Object.values(json?.Data || {});
@@ -778,11 +813,30 @@ fetch("https://oris.ceskyorientak.cz/API/?format=json&method=getCSOSClubList")
             opt.dataset.abbr = c.Abbr;
             select.appendChild(opt);
         });
+        return clubs;
+    })
+    .catch(err => {
+        console.error("Chyba pri nacitani klubu:", err);
+        return [];
     });
 
 // Vyhledá klub v cache podle zkratky
 function findClubByAbbr(abbr) {
     return clubsCache.find(c => c.Abbr === abbr);
+}
+
+function selectClubByAbbr(abbr) {
+    const select = document.getElementById("clubSelect");
+    if (!select) return false;
+
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].dataset.abbr === abbr) {
+            select.selectedIndex = i;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // Přihlášky reg. čísel na konkrétní závod (štafety přes getUser + getUserEventEntries)
@@ -1507,14 +1561,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         if (!/^[A-Z]{3}$/.test(val)) return;
 
-        const select = document.getElementById("clubSelect");
-
-        for (let i = 0; i < select.options.length; i++) {
-            if (select.options[i].dataset.abbr === val) {
-                select.selectedIndex = i;
-                break;
-            }
-        }
+        selectClubByAbbr(val);
     });
 
 
@@ -1528,4 +1575,11 @@ window.addEventListener("DOMContentLoaded", () => {
             document.getElementById("mainInput").value = abbr;
         }
     });
+
+    const urlInput = getInputFromUrl();
+    if (urlInput) {
+        input.value = urlInput;
+        input.dispatchEvent(new Event("input"));
+        handleLoad();
+    }
 });
