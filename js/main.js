@@ -304,9 +304,11 @@ function showEmptyResult() {
 
 // Zjistí přítomnost pokynů (PDF), předběžných parametrů a zda jde o štafetový závod
 function buildEventMeta(event) {
-    const instructionDoc = Object.values(event.Documents || {})
-            .find(doc => doc.SourceType?.NameCZ === "Pokyny"
-                || String(doc.OtherDescCZ || "").toLowerCase().includes("pokyny"));
+    const documents = Object.values(event.Documents || {});
+    // Oficiální dokument „Pokyny“ má přednost před soubory, které mají
+    // „pokyny“ pouze ve vlastním popisu (např. jazykové či dílčí varianty).
+    const instructionDoc = documents.find(doc => doc.SourceType?.NameCZ === "Pokyny")
+        || documents.find(doc => String(doc.OtherDescCZ || "").toLowerCase().includes("pokyny"));
     const preliminaryDoc = Object.values(event.Documents || {})
         .filter(doc => {
             const desc = (doc.OtherDescCZ || "").toLowerCase();
