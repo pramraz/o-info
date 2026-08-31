@@ -20,11 +20,8 @@
   <a href="/" aria-label="Přejít na hlavní stránku O-info"><img src="/o-info-logo-pruhledne.png" alt="O-info logo"></a>
   <h1>O-info – Platby</h1>
 </header>
-<p>✅ Aplikace pro vytvoření seznamu plateb za ČSOS závody pro následné vložení do ORISu.<br/>✅ Nahrajte výpis plateb z banky (formát .csv) a výsledný seznam vložte do ORISu (zadání plateb u závodu).<br/>✅ Data se nikam neposílají, vše zpracovává váš prohlížeč.<br/>⚠️ Zpracování plateb může obsahovat chyby, nahráváte i kopírujete na vlastní zodpovědnost.</p>
+<p>✅ Aplikace pro vytvoření seznamu plateb za ČSOS závody pro následné vložení do ORISu.<br/>✅ Nahrajte výpis plateb z FIO banky (formát .csv) a výsledný seznam vložte do ORISu (zadání plateb u závodu).<br/>✅ Data se nikam neposílají, vše zpracovává váš prohlížeč.<br/>⚠️ Zpracování plateb může obsahovat chyby, nahráváte i kopírujete na vlastní zodpovědnost.</p>
 <input type="file" id="fileInput" accept=".csv" />
-<br/><br/>
-<label><input type="radio" name="bank" value="fio" checked> Fio</label>
-<label><input type="radio" name="bank" value="mbank"> mBank</label>
 <br/><br/>
 
 <label>Zpracovat od data:</label>
@@ -75,17 +72,12 @@ document.getElementById('fileInput').addEventListener('change', function(event) 
   };
 });
 
-function getSelectedBank() {
-  return document.querySelector('input[name="bank"]:checked').value;
-}
-
 function processFile() {
   if (!fileContent) {
     alert('Nejprve nahraj soubor');
     return;
   }
 
-  const bank = getSelectedBank();
   const fromDateInput = document.getElementById('fromDate').value;
   let fromDate = fromDateInput ? new Date(fromDateInput) : null;
 
@@ -97,8 +89,7 @@ function processFile() {
 
   let processed = 0;
 
-  if (bank === 'fio') {
-    for (let i = 1; i < lines.length; i++) {
+  for (let i = 1; i < lines.length; i++) {
       const rawLine = lines[i];
       if (!rawLine || !rawLine.trim()) continue;
 
@@ -131,67 +122,7 @@ vs = vs.replace(/^0+(?=\d)/, '');
 
       if (fromDate && dateObj && dateObj < fromDate) continue;
 
-      pushLine(formattedDate, vs, amount, zprava);
-    }
-  }
-
-  if (bank === 'mbank') {
-    let headerIndex = -1;
-
-    // find header row dynamically
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('#VS')) {
-        headerIndex = i;
-        break;
-      }
-    }
-
-    if (headerIndex === -1) {
-      alert('Nepodařilo se najít hlavičku mBank CSV');
-      return;
-    }
-
-    for (let i = headerIndex + 1; i < lines.length; i++) {
-      const rawLine = lines[i];
-      if (!rawLine || !rawLine.trim()) continue;
-
-      const cols = rawLine.split(';').map(c =>
-  c.replace(/^"|"$/g, '')
-   .replace(/^'+|'+$/g, '')
-   .trim()
-);
-      if (cols.length < 10) continue;
-
-      let datum = cols[1]; // Datum uskutečnění
-      let zprava = cols[3] || '';
-      let vs = cols[7] || '';
-      let objem = cols[9] || '';
-
-      // normalize amount (remove spaces, comma -> dot)
-      objem = objem.replace(/\s/g, '').replace(',', '.');
-      const amount = parseFloat(objem);
-      if (isNaN(amount) || amount <= 0) continue;
-
-vs = vs.trim();
-
-// odstraní nuly na začátku, ale nechá alespoň jednu číslici
-vs = vs.replace(/^0+(?=\d)/, '');
-
-      let formattedDate = "";
-      let dateObj = null;
-
-      if (datum.includes('-')) {
-        const [d, m, y] = datum.split('-');
-        if (y) {
-          formattedDate = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-          dateObj = new Date(`${y}-${m}-${d}`);
-        }
-      }
-
-      if (fromDate && dateObj && dateObj < fromDate) continue;
-
-      pushLine(formattedDate, vs, amount, zprava);
-    }
+    pushLine(formattedDate, vs, amount, zprava);
   }
 
   function pushLine(date, vs, amount, zprava) {
