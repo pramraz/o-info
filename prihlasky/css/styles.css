@@ -97,17 +97,25 @@ body {
   color: #222;
 }
 
-.site-title {
-  position: relative;
-  text-align: center;
-  margin: 0;
+.app-header {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
 }
 
-.site-title img {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-100px);
-  width: 40px;
+.app-header h1 {
+  margin: 0;
+  text-align: center;
+}
+
+.home-logo { display: block; line-height: 0; }
+
+.home-logo img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
 }
 
 h1 {

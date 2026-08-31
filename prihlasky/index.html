@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <title>O-info</title>
+  <title>O-info – Přihlášky</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Přehled přihlášek na orientační závody z databáze ORIS – vyhledávání podle registračního čísla nebo klubu.">
   <!-- Google Analytics -->
@@ -21,11 +21,13 @@
 <body>
   <div class="container">
     <!-- HEADER -->
-    <span><button id="themeToggle" class="theme-toggle" title="Přepnout režim" aria-label="Přepnout světlý/tmavý režim">🌙</button> Přejít na <a href="https://o-info.cz/platby">O-platby</a></span>
-    <h1 class="site-title">
-      <img src="https://o-info.cz/data/o-info-logo-pruhledne.png" alt="O-info logo">
-      O-info
-    </h1>
+    <header class="app-header">
+      <a class="home-logo" href="/" aria-label="Přejít na hlavní stránku O-info">
+        <img src="/o-info-logo-pruhledne.png" alt="O-info logo">
+      </a>
+      <h1>O-info – Přihlášky</h1>
+      <button id="themeToggle" class="theme-toggle" title="Přepnout režim" aria-label="Přepnout světlý/tmavý režim">🌙</button>
+    </header>
     <hr>
     <!-- NÁPOVĚDA -->
     <details class="help-box">
