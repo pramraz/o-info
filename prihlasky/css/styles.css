@@ -98,28 +98,37 @@ body {
 }
 
 .app-header {
-  display: grid;
-  grid-template-columns: 48px 1fr 48px;
+  display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
+  gap: 14px;
+  margin-top: 10px;
+  margin-bottom: 16px;
 }
 
 .app-header h1 {
   margin: 0;
-  text-align: center;
+  font-size: clamp(1.35rem, 3.5vw, 1.85rem);
+  font-weight: 700;
+  text-align: left;
+  line-height: 1.2;
 }
 
-.home-logo { display: block; line-height: 0; }
+.home-logo {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  flex-shrink: 0;
+}
 
 .home-logo img {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
 }
 
-h1 {
-  margin-bottom: 6px;
+.app-header .theme-toggle {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .input-select {
@@ -434,6 +443,27 @@ RESPONSIVE
 @media (max-width: 600px) {
   body {
     padding: 10px;
+  }
+
+  .app-header {
+    gap: 10px;
+    margin-top: 4px;
+    margin-bottom: 12px;
+  }
+
+  .home-logo img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .app-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .theme-toggle {
+    width: 40px;
+    padding: 4px 6px;
+    font-size: 16px;
   }
 
   .date-range {
