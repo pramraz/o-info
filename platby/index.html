@@ -2,157 +2,260 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>O-info – Platby</title>
+  <!-- Využití Bootstrapu pro moderní a čistý vzhled shodný s ostatními částmi O-info -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .app-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
-    .app-header a { display: block; line-height: 0; }
-    .app-header img { width: 48px; height: 48px; object-fit: contain; }
-    .app-header h1 { margin: 0; }
-    textarea { width: 100%; height: 200px; margin-top: 10px; }
-    h2 { margin-top: 30px; }
-    .info { margin-top: 10px; font-size: 14px; color: #555; }
-    button { margin-top: 10px; margin-right: 10px; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .card {
+      border-radius: 12px;
+    }
+    .form-control, .btn {
+      border-radius: 8px;
+    }
+    textarea.font-monospace {
+      font-size: 0.875rem;
+      resize: vertical;
+    }
   </style>
 </head>
-<body>
-<header class="app-header">
-  <a href="/" aria-label="Přejít na hlavní stránku O-info"><img src="/o-info-logo-pruhledne.png" alt="O-info logo"></a>
-  <h1>O-info – Platby</h1>
-</header>
-<p>✅ Aplikace pro vytvoření seznamu plateb za ČSOS závody pro následné vložení do ORISu.<br/>✅ Nahrajte výpis plateb z FIO banky (formát .csv) a výsledný seznam vložte do ORISu (zadání plateb u závodu).<br/>✅ Data se nikam neposílají, vše zpracovává váš prohlížeč.<br/>⚠️ Zpracování plateb může obsahovat chyby, nahráváte i kopírujete na vlastní zodpovědnost.</p>
-<input type="file" id="fileInput" accept=".csv" />
-<br/><br/>
+<body class="bg-light">
+  <div class="container my-5" style="max-width: 960px;">
+    <!-- HEADER -->
+    <header class="d-flex align-items-center gap-3 mb-4">
+      <a href="/" aria-label="Přejít na hlavní stránku O-info">
+        <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48" style="object-fit: contain;">
+      </a>
+      <h1 class="h2 mb-0">O-info – Platby</h1>
+    </header>
 
-<label>Zpracovat od data:</label>
-<input type="date" id="fromDate" />
-<label> (když není vyplněno datum, zpracuje se celý soubor)</label>
-<br/>
-<button onclick="processFile()">Zpracuj</button>
+    <!-- NÁPOVĚDA / INFO -->
+    <div class="alert alert-light border shadow-sm mb-4">
+      <div class="d-flex flex-column gap-2 text-secondary small">
+        <div>✅ <strong>Aplikace pro vytvoření seznamu plateb za ČSOS závody</strong> pro následné vložení do ORISu.</div>
+        <div>✅ Nahrajte výpis plateb z Fio banky (formát <code>.csv</code>) a výsledný seznam vložte do ORISu (zadání plateb u závodu).</div>
+        <div>✅ Data se nikam neposílají, vše zpracovává pouze váš prohlížeč.</div>
+        <div class="text-muted">⚠️ Zpracování plateb může obsahovat chyby, nahráváte i kopírujete na vlastní zodpovědnost.</div>
+      </div>
+    </div>
 
-<div class="info" id="debugInfo"></div>
+    <!-- FORMULÁŘ NAHRÁNÍ -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-5">
+            <label for="fileInput" class="form-label fw-semibold">Výpis plateb z Fio banky (.csv)</label>
+            <input type="file" id="fileInput" class="form-control" accept=".csv" />
+          </div>
+          <div class="col-md-4">
+            <label for="fromDate" class="form-label fw-semibold">Zpracovat od data:</label>
+            <input type="date" id="fromDate" class="form-control" />
+            <div class="form-text">Nevyplněno = zpracuje se celý soubor</div>
+          </div>
+          <div class="col-md-3">
+            <button type="button" class="btn btn-success w-100 py-2" onclick="processFile()">
+              Zpracovat soubor
+            </button>
+          </div>
+        </div>
 
-<h2>✅ Platby pro ORIS</h2>
-<button onclick="copyToClipboard('validOutput')">Kopíruj do schránky</button>
-<textarea id="validOutput"></textarea>
+        <div class="alert alert-info mt-3 mb-0" id="debugInfo" style="display: none;"></div>
+      </div>
+    </div>
 
-<h2>⚠️Podezřelé platby</h2>
-<p>Ostatní připsané platby na účet - pro kontrolu</p>
-<button onclick="copyToClipboard('suspiciousOutput')">Kopíruj do schránky</button>
-<textarea id="suspiciousOutput"></textarea>
+    <!-- VÝSTUPY -->
+    <div class="row g-4">
+      <!-- ORIS platby -->
+      <div class="col-12">
+        <div class="card shadow-sm border-success">
+          <div class="card-header bg-success bg-opacity-10 d-flex justify-content-between align-items-center py-2 px-3">
+            <h5 class="mb-0 text-success fw-bold">✅ Platby pro ORIS</h5>
+            <button type="button" class="btn btn-outline-success btn-sm" onclick="copyToClipboard('validOutput', this)">
+              📋 Kopírovat do schránky
+            </button>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">Předformátovaný výpis plateb pro import do ORISu.</p>
+            <textarea id="validOutput" class="form-control font-monospace" rows="8" placeholder="Zde se zobrazí zpracovaná data pro ORIS..."></textarea>
+          </div>
+        </div>
+      </div>
 
-<h2>💳 Platby přes Revolut</h2>
-<p>Pouze předpokládané na základě 10místného VS, je nutné znotrolovat - typicky od cizinců</p>
-<button onclick="copyToClipboard('revolutOutput')">Kopíruj do schránky</button>
-<textarea id="revolutOutput"></textarea>
+      <!-- Podezřelé platby -->
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100 border-warning">
+          <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center py-2 px-3">
+            <h5 class="mb-0 text-warning-emphasis fw-bold">⚠️ Podezřelé platby</h5>
+            <button type="button" class="btn btn-outline-dark btn-sm" onclick="copyToClipboard('suspiciousOutput', this)">
+              📋 Kopírovat do schránky
+            </button>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">Ostatní připsané platby na účet – pro kontrolu.</p>
+            <textarea id="suspiciousOutput" class="form-control font-monospace" rows="6" placeholder="Ostatní platby k manuální kontrole..."></textarea>
+          </div>
+        </div>
+      </div>
 
-<script>
-let fileContent = "";
+      <!-- Platby přes Revolut -->
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100 border-info">
+          <div class="card-header bg-info bg-opacity-10 d-flex justify-content-between align-items-center py-2 px-3">
+            <h5 class="mb-0 text-info-emphasis fw-bold">💳 Platby přes Revolut</h5>
+            <button type="button" class="btn btn-outline-dark btn-sm" onclick="copyToClipboard('revolutOutput', this)">
+              📋 Kopírovat do schránky
+            </button>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">Pouze předpokládané na základě 10místného VS, je nutné zkontrolovat – typicky od cizinců.</p>
+            <textarea id="revolutOutput" class="form-control font-monospace" rows="6" placeholder="Předpokládané platby Revolut..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
 
-document.getElementById('fileInput').addEventListener('change', function(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+    <!-- FOOTER -->
+    <footer class="text-center text-muted py-4 small mt-4">
+      O-info
+    </footer>
+  </div>
 
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    fileContent = e.target.result;
-    if (fileContent.charCodeAt(0) === 0xFEFF) {
-      fileContent = fileContent.slice(1);
-    }
-  };
-  // try UTF-8 first, fallback to Windows-1250
-  reader.readAsText(file, 'utf-8');
+  <script>
+    let fileContent = "";
 
-  reader.onerror = function() {
-    const reader2 = new FileReader();
-    reader2.onload = function(e2) {
-      fileContent = e2.target.result;
-    };
-    reader2.readAsText(file, 'windows-1250');
-  };
-});
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
 
-function processFile() {
-  if (!fileContent) {
-    alert('Nejprve nahraj soubor');
-    return;
-  }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        fileContent = e.target.result;
+        if (fileContent.charCodeAt(0) === 0xFEFF) {
+          fileContent = fileContent.slice(1);
+        }
+      };
+      // try UTF-8 first, fallback to Windows-1250
+      reader.readAsText(file, 'utf-8');
 
-  const fromDateInput = document.getElementById('fromDate').value;
-  let fromDate = fromDateInput ? new Date(fromDateInput) : null;
+      reader.onerror = function() {
+        const reader2 = new FileReader();
+        reader2.onload = function(e2) {
+          fileContent = e2.target.result;
+        };
+        reader2.readAsText(file, 'windows-1250');
+      };
+    });
 
-  const lines = fileContent.split(/\r?\n/);
+    function processFile() {
+      if (!fileContent) {
+        alert('Nejprve nahraj soubor');
+        return;
+      }
 
-  let valid = [];
-  let suspicious = [];
-  let revolut = [];
+      const fromDateInput = document.getElementById('fromDate').value;
+      let fromDate = fromDateInput ? new Date(fromDateInput) : null;
 
-  let processed = 0;
+      const lines = fileContent.split(/\r?\n/);
 
-  for (let i = 1; i < lines.length; i++) {
-      const rawLine = lines[i];
-      if (!rawLine || !rawLine.trim()) continue;
+      let valid = [];
+      let suspicious = [];
+      let revolut = [];
 
-      const cols = rawLine.match(/("[^"]*"|[^;]+)/g)?.map(c => c.replace(/^"|"$/g, '')) || [];
-      if (cols.length < 7) continue;
+      let processed = 0;
 
-      let datum = cols[0];
-      let objem = cols[1];
-      let zprava = cols[5] || '';
-      let vs = cols[6] || '';
+      for (let i = 1; i < lines.length; i++) {
+        const rawLine = lines[i];
+        if (!rawLine || !rawLine.trim()) continue;
 
-      const amount = parseFloat(objem.replace(',', '.'));
-      if (isNaN(amount) || amount <= 0) continue;
+        const cols = rawLine.match(/("[^"]*"|[^;]+)/g)?.map(c => c.replace(/^"|"$/g, '')) || [];
+        if (cols.length < 7) continue;
 
-vs = vs.trim();
+        let datum = cols[0];
+        let objem = cols[1];
+        let zprava = cols[5] || '';
+        let vs = cols[6] || '';
 
-// odstraní nuly na začátku, ale nechá alespoň jednu číslici
-vs = vs.replace(/^0+(?=\d)/, '');
+        const amount = parseFloat(objem.replace(',', '.'));
+        if (isNaN(amount) || amount <= 0) continue;
 
-      let formattedDate = "";
-      let dateObj = null;
+        vs = vs.trim();
 
-      if (datum.includes('.')) {
-        const [d, m, y] = datum.split('.');
-        if (y) {
-          formattedDate = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-          dateObj = new Date(`${y}-${m}-${d}`);
+        // odstraní nuly na začátku, ale nechá alespoň jednu číslici
+        vs = vs.replace(/^0+(?=\d)/, '');
+
+        let formattedDate = "";
+        let dateObj = null;
+
+        if (datum.includes('.')) {
+          const [d, m, y] = datum.split('.');
+          if (y) {
+            formattedDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+            dateObj = new Date(`${y}-${m}-${d}`);
+          }
+        }
+
+        if (fromDate && dateObj && dateObj < fromDate) continue;
+
+        pushLine(formattedDate, vs, amount, zprava);
+      }
+
+      function pushLine(date, vs, amount, zprava) {
+        const lineOutput = `${date};${vs};${amount};;${zprava}`;
+        processed++;
+
+        if (/^\d{10}$/.test(vs)) {
+          revolut.push(lineOutput);
+        } else if (vs.startsWith('11') && vs.length >= 6) {
+          valid.push(lineOutput);
+        } else {
+          suspicious.push(lineOutput);
         }
       }
 
-      if (fromDate && dateObj && dateObj < fromDate) continue;
+      document.getElementById('validOutput').value = valid.join('\n');
+      document.getElementById('suspiciousOutput').value = suspicious.join('\n');
+      document.getElementById('revolutOutput').value = revolut.join('\n');
 
-    pushLine(formattedDate, vs, amount, zprava);
-  }
-
-  function pushLine(date, vs, amount, zprava) {
-    const lineOutput = `${date};${vs};${amount};;${zprava}`;
-    processed++;
-
-    if (/^\d{10}$/.test(vs)) {
-      revolut.push(lineOutput);
-    } else if (vs.startsWith('11') && vs.length >= 6) {
-      valid.push(lineOutput);
-    } else {
-      suspicious.push(lineOutput);
+      const debugInfo = document.getElementById('debugInfo');
+      debugInfo.innerHTML =
+        `<strong>Zpracováno řádků:</strong> ${processed} &nbsp;|&nbsp; <strong>ORIS:</strong> <span class="badge bg-success">${valid.length}</span> &nbsp;|&nbsp; <strong>Revolut:</strong> <span class="badge bg-info text-dark">${revolut.length}</span> &nbsp;|&nbsp; <strong>Podezřelé:</strong> <span class="badge bg-warning text-dark">${suspicious.length}</span>`;
+      debugInfo.style.display = 'block';
     }
-  }
 
-  document.getElementById('validOutput').value = valid.join('\n');
-  document.getElementById('suspiciousOutput').value = suspicious.join('\n');
-  document.getElementById('revolutOutput').value = revolut.join('\n');
+    function copyToClipboard(elementId, btn) {
+      const textarea = document.getElementById(elementId);
+      textarea.select();
+      textarea.setSelectionRange(0, 99999);
 
-  document.getElementById('debugInfo').innerText =
-    `Zpracováno řádků: ${processed} | ORIS: ${valid.length} | Revolut: ${revolut.length} | Podezřelé: ${suspicious.length}`;
-}
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textarea.value).then(() => {
+          showCopyFeedback(btn);
+        }).catch(() => {
+          document.execCommand('copy');
+          showCopyFeedback(btn);
+        });
+      } else {
+        document.execCommand('copy');
+        showCopyFeedback(btn);
+      }
+    }
 
-function copyToClipboard(elementId) {
-  const textarea = document.getElementById(elementId);
-  textarea.select();
-  document.execCommand('copy');
-}
-</script>
-
+    function showCopyFeedback(btn) {
+      if (!btn) return;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '✓ Zkopírováno';
+      const originalClasses = btn.className;
+      btn.classList.remove('btn-outline-success', 'btn-outline-dark', 'btn-outline-warning', 'btn-outline-info');
+      btn.classList.add('btn-success');
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.className = originalClasses;
+      }, 1500);
+    }
+  </script>
 </body>
 </html>
 
