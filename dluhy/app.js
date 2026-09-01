@@ -35,6 +35,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     // 2. Obsluha odeslání formuláře
+document.getElementById('toggleOfficial').addEventListener('change', function() {
+    document.querySelectorAll('#groupOfficial .level-cb').forEach(cb => cb.checked = this.checked);
+});
+
+document.getElementById('toggleOther').addEventListener('change', function() {
+    document.querySelectorAll('#groupOther .level-cb').forEach(cb => cb.checked = this.checked);
+});
+
     document.getElementById('debtForm').addEventListener('submit', function(e) {
         e.preventDefault();
         
@@ -44,18 +52,18 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.disabled = true;
         loadingMsg.style.display = 'block';
 
-        const selectedLevels = [];
-        document.querySelectorAll('input[type="checkbox"]:not(#lateFeeRule):not(#absenceRule):checked').forEach(cb => {
-            selectedLevels.push(cb.value);
-        });
+const selectedLevels = [];
+document.querySelectorAll('input.level-cb:checked').forEach(cb => {
+    selectedLevels.push(cb.value);
+});
 
         const payload = {
             clubId: clubSelect.value,
             dateFrom: document.getElementById('dateFrom').value,
             dateTo: document.getElementById('dateTo').value,
-            levels: selectedLevels,
-            servicesRule: document.querySelector('input[name="servicesRule"]:checked').value,
-            lateFeeRule: document.getElementById('lateFeeRule').checked,
+levels: selectedLevels,
+    servicesRule: document.getElementById('servicesRule').checked ? 'all' : 'selected',
+    lateFeeRule: document.getElementById('lateFeeRule').checked,
             absenceRule: document.getElementById('absenceRule').checked
         };
 

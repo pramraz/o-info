@@ -14,7 +14,7 @@
             <a href="/" aria-label="Přejít na hlavní stránku O-info">
                 <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48">
             </a>
-            <h1 class="mb-0">O-info – Dluhy</h1>
+            <h1 class="h2 mb-0">O-info – Dluhy</h1>
         </header>
         
         <div class="card shadow-sm">
@@ -37,60 +37,71 @@
                         </div>
                     </div>
 
-                    <hr>
+<hr>
                     
-                    <h5 class="mb-3">1. Druhy závodů (plné startovné)</h5>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <strong>Oficiální závody (defaultně VYPNUTO)</strong>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="MCR" id="MCR"><label class="form-check-label" for="MCR">MČR</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="CP" id="CP"><label class="form-check-label" for="CP">ČP</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="ZA" id="ZA"><label class="form-check-label" for="ZA">ŽA</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="ZB" id="ZB"><label class="form-check-label" for="ZB">ŽB</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="CPS" id="CPS"><label class="form-check-label" for="CPS">ČPŠ</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="OZ" id="OZ"><label class="form-check-label" for="OZ">OŽ</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="OM" id="OM"><label class="form-check-label" for="OM">OM</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="VET" id="VET"><label class="form-check-label" for="VET">VET</label></div>
-                        </div>
-                        <div class="col-md-6">
-                            <strong>Ostatní závody (defaultně ZAPNUTO)</strong>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="OST" id="OST" checked><label class="form-check-label" for="OST">OST</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="ZL" id="ZL" checked><label class="form-check-label" for="ZL">ZL</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="OF" id="OF" checked><label class="form-check-label" for="OF">OF</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="SEM" id="SEM" checked><label class="form-check-label" for="SEM">SEM</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="ET" id="ET" checked><label class="form-check-label" for="ET">ET</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="E" id="E" checked><label class="form-check-label" for="E">E</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="REG" id="REG" checked><label class="form-check-label" for="REG">REG</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="STK" id="STK" checked><label class="form-check-label" for="STK">STK</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="PS" id="PS" checked><label class="form-check-label" for="PS">PS</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="TC" id="TC" checked><label class="form-check-label" for="TC">TC</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" value="REPRE" id="REPRE" checked><label class="form-check-label" for="REPRE">REPRE</label></div>
-                        </div>
-                    </div>
+<h5 class="mb-1">1. Druhy závodů</h5>
+<p class="text-muted small mb-3">Pokud je zaškrtnuto, počítá se členovi plné startovné.</p>
 
-                    <hr>
+<div class="row mb-3">
+    <!-- Levá strana: Oficiální závody -->
+    <div class="col-md-6">
+        <div class="form-check mb-2 pb-2 border-bottom">
+            <input class="form-check-input toggle-group" type="checkbox" id="toggleOfficial">
+            <label class="form-check-label fw-bold" for="toggleOfficial">Oficiální závody (označit vše)</label>
+        </div>
+        <div id="groupOfficial">
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="MČR" id="MCR"><label class="form-check-label" for="MCR">MČR</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="ČP" id="CP"><label class="form-check-label" for="CP">ČP</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="ŽA" id="ZA"><label class="form-check-label" for="ZA">ŽA</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="ŽB" id="ZB"><label class="form-check-label" for="ZB">ŽB</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="ČPŠ" id="CPS"><label class="form-check-label" for="CPS">ČPŠ</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="OŽ" id="OZ"><label class="form-check-label" for="OZ">OŽ</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="OM" id="OM"><label class="form-check-label" for="OM">OM</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="VET" id="VET"><label class="form-check-label" for="VET">VET</label></div>
+        </div>
+    </div>
+    
+    <!-- Pravá strana: Ostatní závody -->
+    <div class="col-md-6">
+        <div class="form-check mb-2 pb-2 border-bottom">
+            <input class="form-check-input toggle-group" type="checkbox" id="toggleOther" checked>
+            <label class="form-check-label fw-bold" for="toggleOther">Ostatní závody (označit vše)</label>
+        </div>
+        <div id="groupOther">
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="OST" id="OST" checked><label class="form-check-label" for="OST">OST</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="ZL" id="ZL" checked><label class="form-check-label" for="ZL">ZL</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="OF" id="OF" checked><label class="form-check-label" for="OF">OF</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="SEM" id="SEM" checked><label class="form-check-label" for="SEM">SEM</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="ET" id="ET" checked><label class="form-check-label" for="ET">ET</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="E" id="E" checked><label class="form-check-label" for="E">E</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="REG" id="REG" checked><label class="form-check-label" for="REG">REG</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="STK" id="STK" checked><label class="form-check-label" for="STK">STK</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="PS" id="PS" checked><label class="form-check-label" for="PS">PS</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="TC" id="TC" checked><label class="form-check-label" for="TC">TC</label></div>
+            <div class="form-check"><input class="form-check-input level-cb" type="checkbox" value="REPRE" id="REPRE" checked><label class="form-check-label" for="REPRE">REPRE</label></div>
+        </div>
+    </div>
+</div>
 
-                    <h5 class="mb-3">2. Doplňkové služby</h5>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="servicesRule" id="servicesSelected" value="selected">
-                        <label class="form-check-label" for="servicesSelected">Počítat pouze na vybraných závodech (dle bodu 1)</label>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="servicesRule" id="servicesAll" value="all" checked>
-                        <label class="form-check-label" for="servicesAll">Počítat na VŠECH závodech</label>
-                    </div>
+<hr>
 
-                    <h5 class="mb-3">3. Navýšení startovného</h5>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="lateFeeRule" checked>
-                        <label class="form-check-label" for="lateFeeRule">Počítat navýšení i na NEVYBRANÝCH závodech (z bodu 1)</label>
-                    </div>
+<h5 class="mb-3">2. Doplňkové služby</h5>
+<div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" id="servicesRule" checked>
+    <label class="form-check-label" for="servicesRule">Počítat u všech závodů (jinak pouze u vybraných v bodu 1)</label>
+</div>
 
-                    <h5 class="mb-3">4. Absence (propadlé startovné)</h5>
-                    <div class="form-check mb-4">
-                        <input class="form-check-input" type="checkbox" id="absenceRule" checked>
-                        <label class="form-check-label" for="absenceRule">Počítat absenci i na NEVYBRANÝCH závodech (z bodu 1)</label>
-                    </div>
+<h5 class="mb-3">3. Navýšení startovného</h5>
+<div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" id="lateFeeRule" checked>
+    <label class="form-check-label" for="lateFeeRule">Počítat u všech závodů (jinak pouze u vybraných v bodu 1)</label>
+</div>
+
+<h5 class="mb-3">4. Absence (propadlé startovné)</h5>
+<div class="form-check mb-4">
+    <input class="form-check-input" type="checkbox" id="absenceRule" checked>
+    <label class="form-check-label" for="absenceRule">Počítat u všech závodů (jinak pouze u vybraných v bodu 1)</label>
+</div>
 
                     <button type="submit" class="btn btn-success btn-lg w-100" id="submitBtn">
                         Vygenerovat a stáhnout Excel

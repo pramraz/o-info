@@ -91,7 +91,7 @@ function buildMapyComUrl(lat, lon) {
 function buildMapIconHtml(mapUrl) {
     if (!mapUrl) return "";
 
-    return `<a href="${mapUrl}" target="_blank" title="Zobrazit na Mapy.com" class="map-link"><img src="data/logo-mapy_com.png" alt="Mapa" class="map-icon"></a>`;
+    return `<a href="${mapUrl}" target="_blank" title="Zobrazit na Mapy.com" class="map-link"><img src="prihlasky/data/logo-mapy_com.png" alt="Mapa" class="map-icon"></a>`;
 }
 
 // Vykreslí HTML tabulku; seskupí záznamy po závodech, seřadí chronologicky

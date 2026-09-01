@@ -49,6 +49,19 @@ body.dark .card-label {
   color: #eee;
 }
 
+/* DARK mode pro menu */
+body.dark .main-nav h3 {
+  color: #eee;
+}
+
+body.dark .nav-link {
+  color: #4da3ff;
+}
+
+body.dark .nav-desc {
+  color: #aaa;
+}
+
 /* TABULKA DARK MODE FIX */
 body.dark table {
   background: #1e1e1e;
@@ -496,4 +509,56 @@ RESPONSIVE
   button {
     font-size: 15px;
   }
+}
+
+/* =========================
+NAVIGATION MENU
+========================= */
+.main-nav {
+  margin: 12px 0;
+}
+
+.main-nav h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.nav-link {
+  font-size: 15px;
+  font-weight: 600;
+  color: #2a6fd6;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  text-decoration: underline;
+}
+
+.nav-desc {
+  font-size: 14px;
+  color: #666;
 }
