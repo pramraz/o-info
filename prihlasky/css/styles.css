@@ -562,11 +562,3 @@ NAVIGATION MENU
   font-size: 14px;
   color: #666;
 }
-
-/* Skrytí menu na mobilních zařízeních v orientaci na výšku */
-@media (max-width: 768px) and (orientation: portrait) {
-  .main-nav,
-  .main-nav + hr {
-    display: none;
-  }
-}
