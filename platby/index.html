@@ -211,6 +211,32 @@
       };
     });
 
+    function parseCsvLine(line, delimiter = ';') {
+      const result = [];
+      let cur = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === delimiter && !inQuotes) {
+          result.push(cur.trim());
+          cur = '';
+        } else {
+          cur += char;
+        }
+      }
+      result.push(cur.trim());
+      return result;
+    }
+
     function processFile() {
       if (!fileContent) {
         alert('Nejprve nahraj soubor');
@@ -222,6 +248,24 @@
       const vsPrefix = document.getElementById('vsPrefix').value.trim() || '11';
 
       const lines = fileContent.split(/\r?\n/);
+      if (lines.length === 0) return;
+
+      // Zkusíme detekovat indexy sloupců z hlavičky (1. řádek)
+      let dateIdx = 0;
+      let amountIdx = 1;
+      let msgIdx = 5;
+      let vsIdx = 6;
+
+      const headerCols = parseCsvLine(lines[0]).map(h => h.toLowerCase().replace(/["']/g, ''));
+      const foundDate = headerCols.findIndex(h => h.includes('datum'));
+      const foundAmount = headerCols.findIndex(h => h.includes('objem') || h.includes('částka') || h.includes('castka'));
+      const foundVs = headerCols.findIndex(h => h === 'vs' || h.includes('variabiln'));
+      const foundMsg = headerCols.findIndex(h => h.includes('zpráv') || h.includes('zprav') || h.includes('poznámk') || h.includes('poznamk') || h.includes('popis'));
+
+      if (foundDate !== -1) dateIdx = foundDate;
+      if (foundAmount !== -1) amountIdx = foundAmount;
+      if (foundVs !== -1) vsIdx = foundVs;
+      if (foundMsg !== -1) msgIdx = foundMsg;
 
       let valid = [];
       let suspicious = [];
@@ -233,15 +277,16 @@
         const rawLine = lines[i];
         if (!rawLine || !rawLine.trim()) continue;
 
-        const cols = rawLine.match(/("[^"]*"|[^;]+)/g)?.map(c => c.replace(/^"|"$/g, '')) || [];
-        if (cols.length < 7) continue;
+        const cols = parseCsvLine(rawLine);
+        const maxNeededIdx = Math.max(dateIdx, amountIdx, vsIdx);
+        if (cols.length <= maxNeededIdx) continue;
 
-        let datum = cols[0];
-        let objem = cols[1];
-        let zprava = cols[5] || '';
-        let vs = cols[6] || '';
+        let datum = cols[dateIdx] || '';
+        let objem = cols[amountIdx] || '';
+        let zprava = (msgIdx !== -1 && cols[msgIdx]) ? cols[msgIdx] : '';
+        let vs = cols[vsIdx] || '';
 
-        const amount = parseFloat(objem.replace(',', '.'));
+        const amount = parseFloat(objem.replace(/\s/g, '').replace(',', '.'));
         if (isNaN(amount) || amount <= 0) continue;
 
         vs = vs.trim();
@@ -255,8 +300,8 @@
         if (datum.includes('.')) {
           const [d, m, y] = datum.split('.');
           if (y) {
-            formattedDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-            dateObj = new Date(`${y}-${m}-${d}`);
+            formattedDate = `${y.trim()}-${m.trim().padStart(2, '0')}-${d.trim().padStart(2, '0')}`;
+            dateObj = new Date(`${y.trim()}-${m.trim()}-${d.trim()}`);
           }
         }
 
