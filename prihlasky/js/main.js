@@ -141,7 +141,6 @@ function renderTable(rows, startListMap = {}) {
 
             const td = document.createElement("td");
             td.className = "name-cell";
-            td.textContent = row.name;
             td.textContent = row.name + (row.startNumber ? ` (${row.startNumber})` : "");
             tr.appendChild(td);
 
@@ -262,7 +261,6 @@ function buildStartListMaps(startData) {
         startClassMap,
         startClassMapByReg,
         startClassIdMap,
-        startClassIdMapByReg
         startClassIdMapByReg,
         startNumbers,
         startNumbersByReg
@@ -303,7 +301,6 @@ function buildStartListMapsByEvent(startResults) {
         startClassByRegMap,
         startClassIdMap,
         startClassIdByRegMap,
-        startListMap
         startListMap,
         startNumbersMap,
         startNumbersByRegMap
@@ -346,7 +343,6 @@ function buildEventMeta(event) {
 }
 
 // Sestaví normalizovaný řádkový objekt pro renderTable / renderCards
-function buildRow(entry, event, { eventId, startTime, start, finalClassId, finalClassDesc, cls, isRelay, hasInstructions, instructionsUrl, hasPreliminaryParams, preliminaryParamsUrl }) {
 function buildRow(entry, event, { eventId, startTime, startNumber, start, finalClassId, finalClassDesc, cls, isRelay, hasInstructions, instructionsUrl, hasPreliminaryParams, preliminaryParamsUrl }) {
     return {
         date: event.Date,
@@ -541,7 +537,6 @@ function renderCards(rows) {
                 : `📈 -`;
 
       item.innerHTML = `
-        ${sportIcon} <strong>${row.name}</strong><br>
         ${sportIcon} <strong>${row.name}${row.startNumber ? ` (${row.startNumber})` : ""}</strong><br>
         Kat: ${classHtml}<br>
         Reg: ${row.reg} | SI: ${row.si}<br>
@@ -1162,7 +1157,6 @@ async function loadEntries() {
             startClassByRegMap,
             startClassIdMap,
             startClassIdByRegMap,
-            startListMap
             startListMap,
             startNumbersMap,
             startNumbersByRegMap
@@ -1494,7 +1488,6 @@ async function loadClubEntries() {
 
         if (!finalEntries.length) { showEmptyResult(); return; }
 
-        const { startTimes, startTimesByReg, startClassMap, startClassMapByReg, startClassIdMap, startClassIdMapByReg } =
         const { startTimes, startTimesByReg, startClassMap, startClassMapByReg, startClassIdMap, startClassIdMapByReg, startNumbers, startNumbersByReg } =
             buildStartListMaps(startData);
 
