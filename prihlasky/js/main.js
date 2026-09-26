@@ -142,6 +142,7 @@ function renderTable(rows, startListMap = {}) {
             const td = document.createElement("td");
             td.className = "name-cell";
             td.textContent = row.name;
+            td.textContent = row.name + (row.startNumber ? ` (${row.startNumber})` : "");
             tr.appendChild(td);
 
             tr.innerHTML += `<td>${buildClassHtml(row)}</td>`;
@@ -224,6 +225,8 @@ function buildStartListMaps(startData) {
     const startClassMapByReg = {};
     const startClassIdMap = {};
     const startClassIdMapByReg = {};
+    const startNumbers = {};
+    const startNumbersByReg = {};
 
     startData.forEach(s => {
         const userId = s.UserID ? String(s.UserID) : "";
@@ -246,6 +249,11 @@ function buildStartListMaps(startData) {
             if (userId) startClassIdMap[userId] = s.ClassID;
             if (regNo) startClassIdMapByReg[regNo] = s.ClassID;
         }
+
+        if (s.StartNumber) {
+            if (userId) startNumbers[userId] = s.StartNumber;
+            if (regNo) startNumbersByReg[regNo] = s.StartNumber;
+        }
     });
 
     return {
@@ -255,6 +263,9 @@ function buildStartListMaps(startData) {
         startClassMapByReg,
         startClassIdMap,
         startClassIdMapByReg
+        startClassIdMapByReg,
+        startNumbers,
+        startNumbersByReg
     };
 }
 
@@ -267,6 +278,8 @@ function buildStartListMapsByEvent(startResults) {
     const startClassIdMap = {};
     const startClassIdByRegMap = {};
     const startListMap = {};
+    const startNumbersMap = {};
+    const startNumbersByRegMap = {};
 
     startResults.forEach(({ eventId, data }) => {
         startListMap[eventId] = data.length > 0;
@@ -279,6 +292,8 @@ function buildStartListMapsByEvent(startResults) {
         startClassByRegMap[eventId] = maps.startClassMapByReg;
         startClassIdMap[eventId] = maps.startClassIdMap;
         startClassIdByRegMap[eventId] = maps.startClassIdMapByReg;
+        startNumbersMap[eventId] = maps.startNumbers;
+        startNumbersByRegMap[eventId] = maps.startNumbersByReg;
     });
 
     return {
@@ -289,6 +304,9 @@ function buildStartListMapsByEvent(startResults) {
         startClassIdMap,
         startClassIdByRegMap,
         startListMap
+        startListMap,
+        startNumbersMap,
+        startNumbersByRegMap
     };
 }
 
@@ -329,6 +347,7 @@ function buildEventMeta(event) {
 
 // Sestaví normalizovaný řádkový objekt pro renderTable / renderCards
 function buildRow(entry, event, { eventId, startTime, start, finalClassId, finalClassDesc, cls, isRelay, hasInstructions, instructionsUrl, hasPreliminaryParams, preliminaryParamsUrl }) {
+function buildRow(entry, event, { eventId, startTime, startNumber, start, finalClassId, finalClassDesc, cls, isRelay, hasInstructions, instructionsUrl, hasPreliminaryParams, preliminaryParamsUrl }) {
     return {
         date: event.Date,
         dateSortable: new Date(event.Date),
@@ -337,6 +356,7 @@ function buildRow(entry, event, { eventId, startTime, start, finalClassId, final
         discipline: event?.Discipline?.ShortName || "",
         start: start ?? event.StartTime ?? "",
         startTime,
+        startNumber,
         name: entry.Name,
         class: finalClassDesc,
         reg: isRelay ? "-" : (entry.RegNo || "-"),
@@ -522,6 +542,7 @@ function renderCards(rows) {
 
       item.innerHTML = `
         ${sportIcon} <strong>${row.name}</strong><br>
+        ${sportIcon} <strong>${row.name}${row.startNumber ? ` (${row.startNumber})` : ""}</strong><br>
         Kat: ${classHtml}<br>
         Reg: ${row.reg} | SI: ${row.si}<br>
         ${trackHtml}<br>
@@ -994,6 +1015,7 @@ else {
             return buildRow(e, event, {
                 eventId: selectedEventId,
                 startTime: startTimes[userId] || startTimesByReg[regNo] || "",
+                startNumber: startNumbers[userId] || startNumbersByReg[regNo] || "",
                 start: event.StartTime,
                 finalClassId,
                 finalClassDesc,
@@ -1141,6 +1163,9 @@ async function loadEntries() {
             startClassIdMap,
             startClassIdByRegMap,
             startListMap
+            startListMap,
+            startNumbersMap,
+            startNumbersByRegMap
         } = buildStartListMapsByEvent(startResults);
 
         // transformace
@@ -1156,6 +1181,7 @@ async function loadEntries() {
             return buildRow(entry, event, {
                 eventId: entry.EventID,
                 startTime: startTimesMap[entry.EventID]?.[userId] || startTimesByRegMap[entry.EventID]?.[regNo] || "",
+                startNumber: startNumbersMap[entry.EventID]?.[userId] || startNumbersByRegMap[entry.EventID]?.[regNo] || "",
                 start: event.StartTime,
                 finalClassId,
                 finalClassDesc,
@@ -1392,6 +1418,7 @@ async function loadClubEntriesMultiEvent(clubId) {
                 rows.push(buildRow(e, eventDetail, {
                     eventId: event.ID,
                     startTime: startTimesMap[event.ID]?.[userId] || startTimesByRegMap[event.ID]?.[regNo] || "",
+                    startNumber: startNumbersMap[event.ID]?.[userId] || startNumbersByRegMap[event.ID]?.[regNo] || "",
                     start: eventDetail.StartTime,
                     finalClassId,
                     finalClassDesc,
@@ -1468,6 +1495,7 @@ async function loadClubEntries() {
         if (!finalEntries.length) { showEmptyResult(); return; }
 
         const { startTimes, startTimesByReg, startClassMap, startClassMapByReg, startClassIdMap, startClassIdMapByReg } =
+        const { startTimes, startTimesByReg, startClassMap, startClassMapByReg, startClassIdMap, startClassIdMapByReg, startNumbers, startNumbersByReg } =
             buildStartListMaps(startData);
 
         const { hasInstructions, instructionsUrl, isRelay, hasPreliminaryParams, preliminaryParamsUrl } = buildEventMeta(event);
@@ -1482,6 +1510,7 @@ async function loadClubEntries() {
             return buildRow(e, event, {
                 eventId,
                 startTime: startTimes[userId] || startTimesByReg[regNo] || "",
+                startNumber: startNumbers[userId] || startNumbersByReg[regNo] || "",
                 start: event.StartTime,
                 finalClassId,
                 finalClassDesc,
