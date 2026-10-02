@@ -249,7 +249,7 @@ function buildStartListMaps(startData) {
             if (regNo) startClassIdMapByReg[regNo] = s.ClassID;
         }
 
-        if (s.StartNumber) {
+        if (s.StartNumber && s.StartNumber !== "0") {
             if (userId) startNumbers[userId] = s.StartNumber;
             if (regNo) startNumbersByReg[regNo] = s.StartNumber;
         }
@@ -1393,7 +1393,7 @@ async function loadClubEntriesMultiEvent(clubId) {
             classMaps[id] = buildClassMap(data);
         });
 
-        const { startTimesMap, startTimesByRegMap, startClassMap, startClassByRegMap, startClassIdMap, startClassIdByRegMap, startListMap } =
+        const { startTimesMap, startTimesByRegMap, startClassMap, startClassByRegMap, startClassIdMap, startClassIdByRegMap, startListMap, startNumbersMap, startNumbersByRegMap } =
             buildStartListMapsByEvent(startResults);
 
         // 5. sestavení řádků
