@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <title>Přehled projektů</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Přehled projektů a aplikací.">
+  
+  <link rel="stylesheet" href="/prihlasky/css/styles.css">
+  <style>
+    .projects-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .projects-container h2 {
+        margin-bottom: 20px;
+    }
+    .projects-container h3 {
+        margin-top: 30px;
+        margin-bottom: 15px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .projects-container ul {
+        list-style-type: none;
+        padding-left: 0;
+    }
+    .projects-container li {
+        margin-bottom: 15px;
+        line-height: 1.5;
+        padding-left: 20px;
+        position: relative;
+    }
+    .projects-container li::before {
+        content: "•";
+        position: absolute;
+        left: 0;
+        color: var(--primary-color);
+        font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container projects-container">
+    <header class="app-header">
+      <a class="home-logo" href="/" aria-label="Přejít na hlavní stránku O-info">
+        <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48">
+      </a>
+      <h1>O-info - projekty</h1>
+      <button id="themeToggle" class="theme-toggle" title="Přepnout režim" aria-label="Přepnout světlý/tmavý režim">🌙</button>
+    </header>
+    <hr>
+
+    <h2>Přehled projektů</h2>
+    
+    <h3>Webové aplikace</h3>
+    <ul>
+      <li><strong><a href="https://o-info.cz/">o-info.cz</a></strong>: Výpis přihlášek na závody podle zadaných registračních čísel nebo klubů</li>
+      <li><strong><a href="https://o-info.cz/platby">Platby</a></strong>: Platby za startovné z Fio banky do ORISu</li>
+      <li><strong><a href="https://o-info.cz/dluhy">Dluhy</a></strong>: Výpis částek za startovné a doplňkové služby na závodech za členy zadaného klubu</li>
+    </ul>
+
+    <h3>OB tréninky</h3>
+    <ul>
+      <li><strong><a href="https://o-liga.cz/" target="_blank" rel="noopener noreferrer">O-liga</a></strong>: Pravidelné tréninky orientačního běhu v Praze</li>
+      <li><strong><a href="https://tour-de-prague.cz" target="_blank" rel="noopener noreferrer">Tour de Prague</a></strong>: Každoroční trénink Pražské zimní ligy v orientačním běhu</li>
+    </ul>
+
+    <h3>Mobilní aplikace Android</h3>
+    <ul>
+      <li><strong><a href="https://orionlive.eu/about.html" target="_blank" rel="noopener noreferrer">ORION</a></strong>: Mobilní aplikace pro měření závodů a tréninků v orientačních sportech</li>
+      <li><strong><a href="https://play.google.com/" target="_blank" rel="noopener noreferrer">Orion maps</a></strong>: Navigujte se na OB tréninku bez papírové mapy a buzoly. Podporuje PDF (rotace, zoom) a KMZ (navíc zobrazení atuální polohy, směru a rotace mapy na sever). Skvělá aplikace pro začátečníky v orienťáku, roznašeče kontrol nebo pokud nemáte barevnou tiskárnu. Pokud připevníte telefon na řídítka kola, lze využít i pro MTBO.</li>
+      <li><strong><a href="https://runtimeapp.eu/about.html" target="_blank" rel="noopener noreferrer">RunTime</a></strong>: Mobilní aplikace pro měření časů na běžeckých tréninkách a závodech (příp. na kolech nebo v jiných sportech). Čas se závodníkům měří buď ručně na displeji nebo pomocí RFID čipů. Aplikace umožňuje měřit mezičasy na kontrolách (např. pro ultra závody) díky vytvoření pomocného "terminálu" a také měřit okruhový závod.</li>
+    </ul>
+
+    <h3>Další projekty</h3>
+    <ul>
+      <li><strong><a href="https://janmrazek.blogspot.com/" target="_blank" rel="noopener noreferrer">Mrazák blog</a></strong>: Legendární zápisky nejen ze závodů</li>
+      <li><strong><a href="https://rumcajsovymile.cz/" target="_blank" rel="noopener noreferrer">Rumcajsovy míle</a></strong>: Přijeďte na tradiční jičínské vícedenní OB závody!</li>
+    </ul>
+
+  </div>
+
+  <script>
+    // Přepínač tématu: načte uložené nastavení, respektuje systémovou preferenci, přepíná kliknutím
+    const toggle = document.getElementById("themeToggle");
+    const savedTheme = localStorage.getItem("theme");
+
+    if (toggle) {
+        if (savedTheme === "dark") {
+            document.body.classList.add("dark");
+            toggle.textContent = "☀️";
+        } else {
+            toggle.textContent = "🌙";
+        }
+
+        if (!savedTheme) {
+            const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (prefersDark) {
+                document.body.classList.add("dark");
+                toggle.textContent = "☀️";
+            }
+        }
+
+        toggle.addEventListener("click", () => {
+            document.body.classList.toggle("dark");
+            const isDark = document.body.classList.contains("dark");
+            toggle.textContent = isDark ? "☀️" : "🌙";
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+        });
+    }
+  </script>
+</body>
+</html>
