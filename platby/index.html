@@ -83,6 +83,7 @@
         <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48" style="object-fit: contain;">
       </a>
       <h1 class="h2 mb-0">O-info – Platby</h1>
+      <a href="napoveda.html" class="btn btn-outline-primary btn-sm ms-auto">Nápověda</a>
     </header>
 
     <!-- NÁPOVĚDA / INFO -->
@@ -101,7 +102,7 @@
         <div class="row g-3 align-items-end">
           <div class="col-md-4">
             <label for="fileInput" class="form-label fw-semibold">Výpis plateb z Fio banky (.csv)</label>
-            <input type="file" id="fileInput" class="form-control" accept=".csv" />
+            <input type="file" id="fileInput" class="form-control" accept=".csv,text/csv" />
           </div>
           <div class="col-md-3">
             <label for="fromDate" class="form-label fw-semibold">
@@ -115,16 +116,16 @@
               Začátek VS:
               <span class="info-icon" data-tooltip="Je potřeba zadat min. dvouciferné číslo" title="Je potřeba zadat min. dvouciferné číslo">i</span>
             </label>
-            <input type="text" id="vsPrefix" class="form-control" placeholder="např. 11" value="11" />
+            <input type="text" id="vsPrefix" class="form-control" placeholder="např. 11" value="11" inputmode="numeric" pattern="\d{2,}" />
           </div>
           <div class="col-md-3">
-            <button type="button" class="btn btn-success w-100 py-2" onclick="processFile()">
+            <button type="button" class="btn btn-success w-100 py-2" id="processBtn">
               Zpracovat soubor
             </button>
           </div>
         </div>
 
-        <div class="alert alert-info mt-3 mb-0" id="debugInfo" style="display: none;"></div>
+        <div class="alert alert-info mt-3 mb-0" id="debugInfo" role="status" hidden></div>
       </div>
     </div>
 
@@ -135,48 +136,33 @@
         <div class="card shadow-sm border-success">
           <div class="card-header bg-success bg-opacity-10 d-flex justify-content-between align-items-center py-2 px-3">
             <h5 class="mb-0 text-success fw-bold">✅ Platby pro ORIS</h5>
-            <button type="button" class="btn btn-outline-success btn-sm" onclick="copyToClipboard('validOutput', this)">
+            <button type="button" class="btn btn-outline-success btn-sm" data-copy="validOutput">
               📋 Kopírovat do schránky
             </button>
           </div>
           <div class="card-body">
-            <p class="text-muted small mb-2">Předformátovaný výpis plateb pro import do ORISu.</p>
+            <p class="text-muted small mb-2">Předformátovaný výpis plateb pro import do ORISu. U zahraničních plateb (SEPA, Revolut…) se VS dohledá ze zprávy – takové řádky jsou označené „VS doplněn ze zprávy“.</p>
             <textarea id="validOutput" class="form-control font-monospace" rows="8" placeholder="Zde se zobrazí zpracovaná data pro ORIS..."></textarea>
           </div>
         </div>
       </div>
 
       <!-- Podezřelé platby -->
-      <div class="col-md-6">
+      <div class="col-12">
         <div class="card shadow-sm h-100 border-warning">
           <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center py-2 px-3">
             <h5 class="mb-0 text-warning-emphasis fw-bold">⚠️ Podezřelé platby</h5>
-            <button type="button" class="btn btn-outline-dark btn-sm" onclick="copyToClipboard('suspiciousOutput', this)">
+            <button type="button" class="btn btn-outline-dark btn-sm" data-copy="suspiciousOutput">
               📋 Kopírovat do schránky
             </button>
           </div>
           <div class="card-body">
-            <p class="text-muted small mb-2">Ostatní připsané platby na účet – pro kontrolu.</p>
+            <p class="text-muted small mb-2">Ostatní příchozí platby (jiný nebo chybějící VS) – pro kontrolu.</p>
             <textarea id="suspiciousOutput" class="form-control font-monospace" rows="6" placeholder="Ostatní platby k manuální kontrole..."></textarea>
           </div>
         </div>
       </div>
 
-      <!-- Platby přes Revolut -->
-      <div class="col-md-6">
-        <div class="card shadow-sm h-100 border-info">
-          <div class="card-header bg-info bg-opacity-10 d-flex justify-content-between align-items-center py-2 px-3">
-            <h5 class="mb-0 text-info-emphasis fw-bold">💳 Platby přes Revolut</h5>
-            <button type="button" class="btn btn-outline-dark btn-sm" onclick="copyToClipboard('revolutOutput', this)">
-              📋 Kopírovat do schránky
-            </button>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small mb-2">Pouze předpokládané na základě 10místného VS, je nutné zkontrolovat – typicky od cizinců.</p>
-            <textarea id="revolutOutput" class="form-control font-monospace" rows="6" placeholder="Předpokládané platby Revolut..."></textarea>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- FOOTER -->
@@ -185,185 +171,7 @@
     </footer>
   </div>
 
-  <script>
-    let fileContent = "";
-
-    document.getElementById('fileInput').addEventListener('change', function(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        fileContent = e.target.result;
-        if (fileContent.charCodeAt(0) === 0xFEFF) {
-          fileContent = fileContent.slice(1);
-        }
-      };
-      // try UTF-8 first, fallback to Windows-1250
-      reader.readAsText(file, 'utf-8');
-
-      reader.onerror = function() {
-        const reader2 = new FileReader();
-        reader2.onload = function(e2) {
-          fileContent = e2.target.result;
-        };
-        reader2.readAsText(file, 'windows-1250');
-      };
-    });
-
-    function parseCsvLine(line, delimiter = ';') {
-      const result = [];
-      let cur = '';
-      let inQuotes = false;
-
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-
-        if (char === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            cur += '"';
-            i++;
-          } else {
-            inQuotes = !inQuotes;
-          }
-        } else if (char === delimiter && !inQuotes) {
-          result.push(cur.trim());
-          cur = '';
-        } else {
-          cur += char;
-        }
-      }
-      result.push(cur.trim());
-      return result;
-    }
-
-    function processFile() {
-      if (!fileContent) {
-        alert('Nejprve nahraj soubor');
-        return;
-      }
-
-      const fromDateInput = document.getElementById('fromDate').value;
-      let fromDate = fromDateInput ? new Date(fromDateInput) : null;
-      const vsPrefix = document.getElementById('vsPrefix').value.trim() || '11';
-
-      const lines = fileContent.split(/\r?\n/);
-      if (lines.length === 0) return;
-
-      // Zkusíme detekovat indexy sloupců z hlavičky (1. řádek)
-      let dateIdx = 0;
-      let amountIdx = 1;
-      let msgIdx = 5;
-      let vsIdx = 6;
-
-      const headerCols = parseCsvLine(lines[0]).map(h => h.toLowerCase().replace(/["']/g, ''));
-      const foundDate = headerCols.findIndex(h => h.includes('datum'));
-      const foundAmount = headerCols.findIndex(h => h.includes('objem') || h.includes('částka') || h.includes('castka'));
-      const foundVs = headerCols.findIndex(h => h === 'vs' || h.includes('variabiln'));
-      const foundMsg = headerCols.findIndex(h => h.includes('zpráv') || h.includes('zprav') || h.includes('poznámk') || h.includes('poznamk') || h.includes('popis'));
-
-      if (foundDate !== -1) dateIdx = foundDate;
-      if (foundAmount !== -1) amountIdx = foundAmount;
-      if (foundVs !== -1) vsIdx = foundVs;
-      if (foundMsg !== -1) msgIdx = foundMsg;
-
-      let valid = [];
-      let suspicious = [];
-      let revolut = [];
-
-      let processed = 0;
-
-      for (let i = 1; i < lines.length; i++) {
-        const rawLine = lines[i];
-        if (!rawLine || !rawLine.trim()) continue;
-
-        const cols = parseCsvLine(rawLine);
-        const maxNeededIdx = Math.max(dateIdx, amountIdx, vsIdx);
-        if (cols.length <= maxNeededIdx) continue;
-
-        let datum = cols[dateIdx] || '';
-        let objem = cols[amountIdx] || '';
-        let zprava = (msgIdx !== -1 && cols[msgIdx]) ? cols[msgIdx] : '';
-        let vs = cols[vsIdx] || '';
-
-        const amount = parseFloat(objem.replace(/\s/g, '').replace(',', '.'));
-        if (isNaN(amount) || amount <= 0) continue;
-
-        vs = vs.trim();
-
-        // odstraní nuly na začátku, ale nechá alespoň jednu číslici
-        vs = vs.replace(/^0+(?=\d)/, '');
-
-        let formattedDate = "";
-        let dateObj = null;
-
-        if (datum.includes('.')) {
-          const [d, m, y] = datum.split('.');
-          if (y) {
-            formattedDate = `${y.trim()}-${m.trim().padStart(2, '0')}-${d.trim().padStart(2, '0')}`;
-            dateObj = new Date(`${y.trim()}-${m.trim()}-${d.trim()}`);
-          }
-        }
-
-        if (fromDate && dateObj && dateObj < fromDate) continue;
-
-        pushLine(formattedDate, vs, amount, zprava);
-      }
-
-      function pushLine(date, vs, amount, zprava) {
-        const lineOutput = `${date};${vs};${amount};;${zprava}`;
-        processed++;
-
-        if (/^\d{10}$/.test(vs)) {
-          revolut.push(lineOutput);
-        } else if (vs.startsWith(vsPrefix) && vs.length >= 6) {
-          valid.push(lineOutput);
-        } else {
-          suspicious.push(lineOutput);
-        }
-      }
-
-      document.getElementById('validOutput').value = valid.join('\n');
-      document.getElementById('suspiciousOutput').value = suspicious.join('\n');
-      document.getElementById('revolutOutput').value = revolut.join('\n');
-
-      const debugInfo = document.getElementById('debugInfo');
-      debugInfo.innerHTML =
-        `<strong>Zpracováno řádků:</strong> ${processed} &nbsp;|&nbsp; <strong>ORIS:</strong> <span class="badge bg-success">${valid.length}</span> &nbsp;|&nbsp; <strong>Revolut:</strong> <span class="badge bg-info text-dark">${revolut.length}</span> &nbsp;|&nbsp; <strong>Podezřelé:</strong> <span class="badge bg-warning text-dark">${suspicious.length}</span>`;
-      debugInfo.style.display = 'block';
-    }
-
-    function copyToClipboard(elementId, btn) {
-      const textarea = document.getElementById(elementId);
-      textarea.select();
-      textarea.setSelectionRange(0, 99999);
-
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(textarea.value).then(() => {
-          showCopyFeedback(btn);
-        }).catch(() => {
-          document.execCommand('copy');
-          showCopyFeedback(btn);
-        });
-      } else {
-        document.execCommand('copy');
-        showCopyFeedback(btn);
-      }
-    }
-
-    function showCopyFeedback(btn) {
-      if (!btn) return;
-      const originalText = btn.innerHTML;
-      btn.innerHTML = '✓ Zkopírováno';
-      const originalClasses = btn.className;
-      btn.classList.remove('btn-outline-success', 'btn-outline-dark', 'btn-outline-warning', 'btn-outline-info');
-      btn.classList.add('btn-success');
-      setTimeout(() => {
-        btn.innerHTML = originalText;
-        btn.className = originalClasses;
-      }, 1500);
-    }
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
 

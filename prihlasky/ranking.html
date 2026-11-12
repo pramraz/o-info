@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <title>O-info – ranking v kategorii</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/prihlasky/css/styles.css">
+  <style>
+    .rank-page { max-width: 1000px; margin: 0 auto; }
+    .rank-info { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 8px 0 0; }
+    .rank-info dt { font-weight: 600; }
+    .rank-info dd { margin: 0; }
+    .rank-box { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 12px 16px; margin-top: 16px; }
+    .rank-box h2 { margin: 0 0 6px; font-size: 1.15rem; }
+    .rank-hint { font-size: 12px; color: #666; }
+    .rank-table { display: table; }
+    .rank-table td.num, .rank-table th.num { text-align: right; }
+    .rank-table tr.unranked td { color: #888; }
+    .rank-table tr.pb-member td:first-child::after { content: " ★"; color: #e6a700; }
+    .rank-error { color: #b00020; font-weight: 600; }
+    .back-link { margin-left: auto; }
+    body.dark .rank-box { background: #1e1e1e; }
+    body.dark .rank-hint { color: #aaa; }
+    body.dark .rank-table tr.unranked td { color: #888; }
+    @media (max-width: 600px) {
+      .rank-table { display: table !important; }
+      .rank-table .opt { display: none; }
+      .rank-info { grid-template-columns: 1fr; }
+      .rank-info dt { margin-top: 6px; }
+    }
+  </style>
+  <script>
+    try {
+      var t = localStorage.getItem("theme");
+      window.__dark = t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    } catch (e) {}
+  </script>
+</head>
+<body>
+<script>if (window.__dark) document.body.classList.add("dark");</script>
+<div class="container rank-page">
+  <header class="app-header">
+    <a class="home-logo" href="/" aria-label="Přejít na hlavní stránku O-info">
+      <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48">
+    </a>
+    <h1>O-info – ranking v kategorii</h1>
+    <a class="nav-link back-link" id="backLink" href="/">← Výpis přihlášek</a>
+  </header>
+  <hr>
+
+  <div id="loading" style="display:flex"><span class="spinner"></span>&nbsp;Načítám data...</div>
+  <p id="error" class="rank-error" hidden></p>
+
+  <section id="eventBox" class="rank-box" hidden>
+    <h2 id="eventTitle"></h2>
+    <dl class="rank-info" id="eventInfo"></dl>
+  </section>
+
+  <section id="rankingBox" class="rank-box" hidden>
+    <h2 id="rankingTitle"></h2>
+    <dl class="rank-info" id="rankingInfo"></dl>
+    <p class="rank-hint" id="rankingHint"></p>
+  </section>
+
+  <section id="classBox" class="rank-box" hidden>
+    <h2 id="classTitle"></h2>
+    <p class="rank-hint" id="classHint"></p>
+    <table class="rank-table">
+      <thead>
+        <tr>
+          <th class="num">Poř. v rankingu</th>
+          <th>Jméno</th>
+          <th>Reg. č.</th>
+          <th class="num">Rank. číslo</th>
+          <th class="num opt">Body</th>
+          <th class="opt">St. čas</th>
+        </tr>
+      </thead>
+      <tbody id="classBody"></tbody>
+    </table>
+  </section>
+</div>
+<script type="module" src="/prihlasky/js/ranking.js"></script>
+</body>
+</html>

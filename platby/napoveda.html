@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O-info – Platby – Nápověda</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { line-height: 1.6; }
+        h2 { margin-top: 2rem; }
+        h3 { margin-top: 1.5rem; font-size: 1.2rem; }
+        code { white-space: nowrap; }
+        details.tech > summary { cursor: pointer; font-size: 1.5rem; font-weight: 500; }
+        .table td:first-child { white-space: nowrap; }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container my-5" style="max-width: 960px;">
+    <header class="d-flex align-items-center gap-3 mb-4">
+        <a href="/" aria-label="Přejít na hlavní stránku O-info">
+            <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48">
+        </a>
+        <h1 class="h2 mb-0">O-info – Platby: nápověda</h1>
+        <a href="index.html" class="btn btn-outline-secondary btn-sm ms-auto">← Zpět na aplikaci</a>
+    </header>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+
+            <h2 class="mt-0">Co aplikace dělá</h2>
+            <p>Z výpisu pohybů na účtu ve Fio bance vybere platby za závody a připraví z nich seznam, který stačí vložit do ORISu (zadání plateb u závodu). Ostatní příchozí platby ukáže zvlášť ke kontrole.</p>
+            <p class="text-success"><b>Data se nikam neodesílají</b> – soubor zpracuje jen váš prohlížeč.</p>
+
+            <h2>Jak ji použít</h2>
+            <ol>
+                <li>Ve Fio internetbankingu otevřete <b>Pohyby na účtu</b>, zvolte období a exportujte do <b>CSV</b>.
+                    <div class="alert alert-warning py-2 my-2">Ve výpisu musí být sloupce <b>Datum</b>, <b>Objem</b> a <b>VS</b>. Sloupce exportu si ve Fio volíte sami. Když VS chybí, aplikace na to upozorní a všechny platby skončí mezi podezřelými.</div>
+                </li>
+                <li>V aplikaci vyberte stažený soubor.</li>
+                <li>Volitelně zadejte <b>datum, od kterého</b> zpracovat (např. den posledního zadání plateb do ORISu). Bez data se zpracuje celý soubor.</li>
+                <li>Zadejte <b>začátek VS</b> plateb za závody (alespoň 2 číslice, výchozí <code>11</code>).</li>
+                <li>Klikněte na <b>Zpracovat soubor</b> a zkopírujte seznam <i>Platby pro ORIS</i> do ORISu.</li>
+            </ol>
+
+            <h2>Jak se platby třídí</h2>
+            <p>Zpracovávají se jen <b>příchozí</b> platby (kladná částka).</p>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th>Sekce</th><th>Které platby</th></tr></thead>
+                <tbody>
+                <tr><td>✅ <b>Platby pro ORIS</b></td><td>VS začíná zadaným začátkem a má alespoň 6 číslic.
+                    <div class="mt-1">U zahraničních plateb (SEPA, Revolut…) je v poli VS často bankovní reference a skutečný VS je ve zprávě za <code>/URI/</code>. Když ho tam aplikace najde, platbu zařadí sem a do zprávy připíše „(VS doplněn ze zprávy, VS v bance: …)“.</div></td></tr>
+                <tr><td>⚠️ <b>Podezřelé platby</b></td><td>Všechny ostatní příchozí platby: jiný nebo chybějící VS, příspěvky, dotace…</td></tr>
+                </tbody>
+            </table>
+
+            <h2>Formát výstupu</h2>
+            <p>Jeden řádek = jedna platba: <code>datum;VS;částka;;zpráva</code>, například <code>2026-04-02;1199004;3120;;Startovné ZBM</code>.</p>
+            <ul>
+                <li>Datum je ve tvaru RRRR-MM-DD a čtvrté pole zůstává prázdné.</li>
+                <li>Zpráva je „Zpráva pro příjemce“. Když je prázdná, použije se „Poznámka“.</li>
+                <li>Středníky a zalomení řádků ve zprávě se nahradí mezerou, aby se nerozbil formát.</li>
+            </ul>
+
+            <h2>Na co si dát pozor</h2>
+            <div class="alert alert-warning">
+                <ul class="mb-0">
+                    <li>Řádky označené <b>„VS doplněn ze zprávy“</b> zkontrolujte. Plátce mohl za VS připsat další číslice (např. <code>/URI/11905982DP</code> dá VS 11905982).</li>
+                    <li>Pokud aplikace hlásí <b>opakující se platbu</b> (stejné datum, VS a částka), ověřte, že nejde o duplicitu. Mohou to být ale i dvě skutečné platby.</li>
+                    <li>Hlídejte si datum „od“, ať do ORISu nevložíte stejné platby dvakrát.</li>
+                    <li>Zpracování může obsahovat chyby. Před vložením do ORISu výsledek zkontrolujte.</li>
+                </ul>
+            </div>
+
+            <hr class="my-5">
+
+            <details class="tech">
+                <summary>Pro administrátora (technické podrobnosti)</summary>
+
+                <h3>Soubory</h3>
+                <table class="table table-sm table-bordered">
+                    <tbody>
+                    <tr><td><code>index.html</code></td><td>Stránka aplikace (Bootstrap 5.3 z CDN).</td></tr>
+                    <tr><td><code>app.js</code></td><td>Veškerá logika. Čisté funkce se dají testovat v Node (<code>module.exports</code>).</td></tr>
+                    <tr><td><code>napoveda.html</code></td><td>Tato nápověda.</td></tr>
+                    <tr><td><code>README.md</code></td><td>Stejný obsah ve formátu Markdown.</td></tr>
+                    </tbody>
+                </table>
+                <p>Bez serverové části a bez závislostí. Stačí statický hosting.</p>
+
+                <h3>Zpracování CSV</h3>
+                <ul>
+                    <li><b>Kódování:</b> UTF-8 (i s BOM, tak exportuje Fio), při neplatném UTF-8 se použije Windows-1250.</li>
+                    <li><b>Oddělovač</b> se určí z prvního řádku (<code>;</code>, <code>,</code> nebo tabulátor).</li>
+                    <li><b>Parser</b> zvládá uvozovky, zdvojené uvozovky i zalomení řádku uvnitř hodnoty.</li>
+                    <li><b>Hlavička</b> se hledá v prvních 30 řádcích. Sloupce se hledají podle názvu bez ohledu na pořadí a diakritiku:
+                        <ul>
+                            <li>povinné jsou <code>Datum</code> a <code>Objem</code>,</li>
+                            <li>volitelné jsou <code>VS</code>, <code>Zpráva pro příjemce</code> a <code>Poznámka</code>.</li>
+                        </ul>
+                    </li>
+                    <li><b>Datum:</b> <code>dd.mm.rrrr</code> (případně s časem) nebo <code>rrrr-mm-dd</code>. Filtr „od“ porovnává data bez času, takže nevznikají posuny kvůli časové zóně.</li>
+                    <li><b>Částka:</b> mezery a pevné mezery se ignorují. Formáty <code>1 234,50</code>, <code>1.234,50</code> i <code>1234.5</code> se přečtou správně.</li>
+                    <li><b>VS:</b> odstraní se úvodní nuly.</li>
+                </ul>
+
+                <h3>Pravidla třídění (konstanty v <code>app.js</code>)</h3>
+                <ul>
+                    <li>ORIS: VS jen z číslic, začíná zadaným prefixem, délka ≥ <code>MIN_VALID_VS_LENGTH</code> (6).</li>
+                    <li>Když VS pravidlo nesplňuje (jakákoli délka i prázdný), zkusí se <code>URI_VS</code>: číslice (aspoň 6) za <code>/URI/</code> ve zprávě. Pokud splní pravidlo pro ORIS, platba jde do ORIS s poznámkou ve zprávě. Jinak jde mezi podezřelé.</li>
+                    <li>Kontrola duplicit (stejné datum, VS a částka) běží jen nad platbami pro ORIS.</li>
+                </ul>
+
+                <h3>Ověřeno na reálných výpisech (11/2026)</h3>
+                <ul>
+                    <li>Klubový účet (1 111 pohybů): 202 plateb pro ORIS = 198 shodných s původní verzí + 4 zahraniční s VS doplněným ze zprávy.</li>
+                    <li>Rozdíly jsou jen ve zprávách: doplnění z Poznámky u prázdné zprávy a sloučení dvojitých mezer.</li>
+                    <li>10místné VS: na klubovém účtu většinou SEPA platby přes ČS (VS ve zprávě za <code>/URI/</code>). Na účtu O-ligy VS ve tvaru <code>26MM…</code> z běžných českých bank, ty jsou mezi podezřelými.</li>
+                    <li>Původní verze u výpisu bez sloupce VS brala jako VS sloupec „Poznámka“ (jména plátců).</li>
+                </ul>
+
+                <h3>Změny oproti původní verzi</h3>
+                <ul>
+                    <li>Odstraněny zbytky podpory mBank: sloupce „Částka“ a „Popis“, pevné pozice sloupců, nefunkční přepnutí kódování.</li>
+                    <li>Opraveno:
+                        <ul>
+                            <li>vynechávání plateb z prvního dne období (časová zóna),</li>
+                            <li>čtení částek s tečkou jako oddělovačem tisíců,</li>
+                            <li>středník nebo zalomení ve zprávě rozbíjelo výstup,</li>
+                            <li>hlavička jen na 1. řádku,</li>
+                            <li>chyba „Nejprve nahraj soubor“ při rychlém kliknutí.</li>
+                        </ul>
+                    </li>
+                    <li>Sekce „Revolut“ (předpoklad podle 10místného VS) byla zrušena. Zahraniční platby s VS ve zprávě jdou do ORIS, ostatní mezi podezřelé. Souhrn ukazuje přeskočené řádky.</li>
+                    <li>Záloha původní verze: <code>../_backup_2026-11-12/platby/</code>.</li>
+                </ul>
+            </details>
+
+        </div>
+    </div>
+</div>
+</body>
+</html>

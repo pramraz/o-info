@@ -15,6 +15,7 @@
                 <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48">
             </a>
             <h1 class="h2 mb-0">O-info – Dluhy</h1>
+            <a href="napoveda.html" class="btn btn-outline-primary btn-sm ms-auto">Nápověda</a>
         </header>
         
         <div class="card shadow-sm">
@@ -40,7 +41,7 @@
 <hr>
                     
 <h5 class="mb-1">1. Druhy závodů</h5>
-<p class="text-muted small mb-3">Pokud je zaškrtnuto, počítá se členovi plné startovné.</p>
+<p class="text-muted small mb-3">Pokud je zaškrtnuto, počítá se členovi plné startovné. Zahrnuje OB, LOB i MTBO. Štafety se do dluhů nepočítají – přihlášené štafety bez výsledku jsou ve výpisu na zvláštním listu.</p>
 
 <div class="row mb-3">
     <!-- Levá strana: Oficiální závody -->
@@ -85,7 +86,7 @@
 
 <hr>
 
-<h5 class="mb-3">2. Doplňkové služby</h5>
+<h5 class="mb-3">2. Doplňkové služby a půjčení čipu</h5>
 <div class="form-check mb-3">
     <input class="form-check-input" type="checkbox" id="servicesRule" checked>
     <label class="form-check-label" for="servicesRule">Počítat u všech závodů (jinak pouze u vybraných v bodu 1)</label>
@@ -94,21 +95,23 @@
 <h5 class="mb-3">3. Navýšení startovného</h5>
 <div class="form-check mb-3">
     <input class="form-check-input" type="checkbox" id="lateFeeRule" checked>
-    <label class="form-check-label" for="lateFeeRule">Počítat u všech závodů (jinak pouze u vybraných v bodu 1)</label>
+    <label class="form-check-label" for="lateFeeRule">Účtovat rozdíl oproti základnímu startovnému u závodů, které nejsou zaškrtnuté v bodu 1</label>
 </div>
 
 <h5 class="mb-3">4. Absence (propadlé startovné)</h5>
 <div class="form-check mb-4">
     <input class="form-check-input" type="checkbox" id="absenceRule" checked>
-    <label class="form-check-label" for="absenceRule">Počítat u všech závodů (jinak pouze u vybraných v bodu 1)</label>
+    <label class="form-check-label" for="absenceRule">Účtovat celé startovné při nestartování (DNS / chybí ve výsledcích) u závodů, které nejsou zaškrtnuté v bodu 1</label>
+    <div class="form-text">Závody bez zveřejněných výsledků (soustředění, semináře, čerstvé závody) se přeskočí a vypíšou na listu „Upozornění“.</div>
 </div>
 
                     <button type="submit" class="btn btn-success btn-lg w-100" id="submitBtn">
                         Vygenerovat a stáhnout Excel
                     </button>
-                    <div id="loadingMsg" class="text-center text-primary mt-3" style="display: none;">
+                    <div id="loadingMsg" class="text-center text-primary mt-3" hidden>
                         <strong>Zpracovávám data, to může chvíli trvat...</strong>
                     </div>
+                    <div id="resultMsg" role="status" hidden></div>
                 </form>
             </div>
         </div>

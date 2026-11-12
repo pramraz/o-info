@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O-info – Dluhy – Nápověda</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { line-height: 1.6; }
+        h2 { margin-top: 2rem; }
+        h3 { margin-top: 1.5rem; font-size: 1.2rem; }
+        code { white-space: nowrap; }
+        details.tech > summary { cursor: pointer; font-size: 1.5rem; font-weight: 500; }
+        .table td:first-child { white-space: nowrap; }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container my-5" style="max-width: 960px;">
+    <header class="d-flex align-items-center gap-3 mb-4">
+        <a href="/" aria-label="Přejít na hlavní stránku O-info">
+            <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48">
+        </a>
+        <h1 class="h2 mb-0">O-info – Dluhy: nápověda</h1>
+        <a href="index.html" class="btn btn-outline-secondary btn-sm ms-auto">← Zpět na formulář</a>
+    </header>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+
+            <h2 class="mt-0">Co nástroj dělá</h2>
+            <p>Nástroj z ORISu spočítá, kolik který člen klubu dluží oddílu za závody ve zvoleném období, a výsledek stáhne jako Excel.</p>
+
+            <h2>Jak ho použít</h2>
+            <ol>
+                <li>Vyberte klub (stačí začít psát zkratku nebo název).</li>
+                <li>Zadejte období, nejvýše 400 dní.</li>
+                <li>Zaškrtněte pravidla (viz níže).</li>
+                <li>Klikněte na <b>Vygenerovat a stáhnout Excel</b>. Zpracování trvá od několika sekund až po zhruba minutu.</li>
+            </ol>
+
+            <h2>Co se členovi započítá</h2>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th>Položka</th><th>Kdy se účtuje</th></tr></thead>
+                <tbody>
+                <tr><td><b>Plné startovné</b></td><td>U druhů závodů zaškrtnutých v bodu 1. Výchozí jsou „ostatní“ závody: OST, ZL, soustředění, etapové…</td></tr>
+                <tr><td><b>Navýšení startovného</b></td><td>U nezaškrtnutých závodů (typicky oficiální). Účtuje se rozdíl, o který je startovné vyšší než základní, např. kvůli pozdní přihlášce.</td></tr>
+                <tr><td><b>Propadlé startovné</b></td><td>U nezaškrtnutých závodů, pokud člen nestartoval (ve výsledcích chybí nebo má DNS). Účtuje se celé startovné.</td></tr>
+                <tr><td><b>Doplňkové služby</b></td><td>Ubytování, strava, parkování atd., buď u všech závodů, nebo jen u zaškrtnutých.</td></tr>
+                <tr><td><b>Půjčení čipu</b></td><td>Půjčovné SI čipu podle ceníku závodu, u etapových závodů za každou etapu. Řídí se stejným pravidlem jako služby.</td></tr>
+                </tbody>
+            </table>
+            <p>Započítávají se závody <b>OB, LOB i MTBO</b>. Štafety se do dluhů nepočítají.</p>
+
+            <h2>Co najdete v Excelu</h2>
+            <ul>
+                <li><b>Přehled dluhů</b> – jeden řádek na člena: celková částka a rozpis po závodech, dole řádek součtů.</li>
+                <li><b>Detailní rozpis položek</b> – každá položka zvlášť (člen, závod, důvod, částka). ORIS ID je odkaz na závod.</li>
+                <li><b>Štafety bez výsledku</b> <i>(jen když nějaké jsou)</i> – štafety, které byly přihlášené a zaplacené, ale ve výsledcích nejsou. Do dluhů se nepočítají, slouží k prověření, proč přihláška propadla.</li>
+                <li><b>Upozornění</b> <i>(jen když nějaké jsou)</i> – závody, kde výpočet nemusí být úplný: chybí výsledky (absence se nevyhodnotila) nebo byl závod zrušen.</li>
+            </ul>
+
+            <h2>Na co si dát pozor</h2>
+            <div class="alert alert-warning">
+                <ul class="mb-0">
+                    <li>Služby objednané jedním člověkem pro celý klub (např. hromadné ubytování) se celé připíšou <b>objednavateli</b>. Rozdělení je potřeba vyřešit ručně.</li>
+                    <li>Absence se u závodů bez výsledků v ORISu nevyhodnocuje: soustředění, semináře, závody z posledních dní, kde výsledky ještě nejsou. Takové závody jsou na listu <i>Upozornění</i>. Pro jistotu je dobré export za nedávné období zopakovat po zveřejnění výsledků.</li>
+                </ul>
+            </div>
+
+            <hr class="my-5">
+
+            <details class="tech">
+                <summary>Pro administrátora (technické podrobnosti)</summary>
+
+                <h3>Soubory</h3>
+                <table class="table table-sm table-bordered">
+                    <tbody>
+                    <tr><td><code>index.html</code></td><td>Formulář (Bootstrap 5.3 a TomSelect z CDN).</td></tr>
+                    <tr><td><code>napoveda.html</code></td><td>Tato nápověda.</td></tr>
+                    <tr><td><code>app.js</code></td><td>Načtení seznamu klubů přímo z ORISu, validace, odeslání na <code>api.php</code>, stažení XLSX a zobrazení hlášek.</td></tr>
+                    <tr><td><code>api.php</code></td><td>Backend: stažení dat z ORISu, výpočet a vygenerování XLSX.</td></tr>
+                    <tr><td><code>vendor/</code></td><td>Composer: <code>phpoffice/phpspreadsheet</code> 5.9. Na hosting je nutné nahrát celou složku.</td></tr>
+                    </tbody>
+                </table>
+                <p><b>Požadavky na server:</b> PHP <b>8.2 nebo novější</b> s rozšířeními <code>curl</code>, <code>zip</code>, <code>xml</code>, <code>mbstring</code>, <code>gd</code>. Volitelné je <code>intl</code>, které zajistí správné české řazení jmen. Server musí mít odchozí HTTPS přístup na <code>oris.ceskyorientak.cz</code>.</p>
+
+                <h3>Konfigurace (konstanty na začátku <code>api.php</code>)</h3>
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light"><tr><th>Konstanta</th><th>Výchozí</th><th>Význam</th></tr></thead>
+                    <tbody>
+                    <tr><td><code>ORIS_SPORTS</code></td><td><code>'1,2,3'</code></td><td>1 = OB, 2 = LOB, 3 = MTBO (4 = TRAIL se nepočítá).</td></tr>
+                    <tr><td><code>RELAY_DISCIPLINES</code></td><td><code>RE, TE, SR</code></td><td>Disciplíny, se kterými se zachází jako se štafetami.</td></tr>
+                    <tr><td><code>MAX_RANGE_DAYS</code></td><td><code>400</code></td><td>Nejdelší povolené období. Stejný limit je i v <code>app.js</code>.</td></tr>
+                    <tr><td><code>HTTP_CONCURRENCY</code></td><td><code>8</code></td><td>Počet souběžných požadavků na ORIS.</td></tr>
+                    <tr><td><code>HTTP_RETRIES</code></td><td><code>2</code></td><td>Kolikrát se neúspěšný požadavek zopakuje.</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>Průběh zpracování</h3>
+                <ol>
+                    <li><b>Seznam akcí:</b> <code>getEventList</code> s parametry <code>sport=1,2,3</code>, <code>all=1</code> a <code>myClubId</code>.
+                        <ul>
+                            <li><code>all=1</code> přidá i akce mimo oficiální kalendář.</li>
+                            <li><code>myClubId</code> vrátí u každé akce počty přihlášek, služeb a výsledků klubu. Detaily se pak stahují jen tam, kde klub něco má.</li>
+                            <li>Zrušené akce se přeskočí. Pokud na nich klub něco měl, objeví se v <i>Upozornění</i>.</li>
+                        </ul>
+                    </li>
+                    <li><b>Detaily</b> (jen kde je potřeba):
+                        <ul>
+                            <li><code>getEventEntries</code> – přihlášky klubu.</li>
+                            <li><code>getEventServiceEntries</code> – služby.</li>
+                            <li><code>getEvent</code> – ceník kategorií pro výpočet navýšení.</li>
+                            <li><code>getEventResults</code> – kvůli absenci a kontrole štafet.</li>
+                        </ul>
+                    </li>
+                    <li><b>Druhá fáze:</b> <code>getEvent</code> kvůli ceně půjčovného (<code>EntryRentSIFee</code>), jen u akcí, kde má někdo <code>RentSI = 1</code>.</li>
+                    <li><b>Jména:</b> berou se z přihlášek. Pro členy, kteří mají jen služby, se dotáhnou přes <code>getUser</code>.</li>
+                    <li><b>Výpočet a XLSX.</b> Pokud se nepodaří načíst kterýkoli povinný údaj (ani po opakování), export se <b>nevytvoří</b>. Raději žádný export než export s neúplnými daty.</li>
+                </ol>
+
+                <h3>Pravidla výpočtu (přesně)</h3>
+                <p>Pro každou individuální přihlášku s <code>Fee &gt; 0</code> platí <b>první</b> splněná podmínka:</p>
+                <ol>
+                    <li>Úroveň je zaškrtnutá → <b>plné startovné</b> (<code>Fee</code>).</li>
+                    <li>Pravidlo absence je zapnuté, závod proběhl, výsledky existují a člen v nich chybí nebo má <code>DNS</code> → <b>celé <code>Fee</code></b>. <code>DISK</code> se bere jako start.</li>
+                    <li>Pravidlo navýšení je zapnuté a člen není vyjmutý → <b><code>Fee − Fee kategorie</code></b>, pokud je kladné.</li>
+                </ol>
+                <p>Nezávisle na tom se účtuje:</p>
+                <ul>
+                    <li><b>Půjčení čipu:</b> <code>EntryRentSIFee × počet přihlášených etap</code>.</li>
+                    <li><b>Služby:</b> <code>TotalFee</code> na registrační číslo objednavatele.</li>
+                </ul>
+                <p>Obojí se řídí pravidlem 2.</p>
+                <p><b>Etapové závody:</b></p>
+                <ul>
+                    <li>Startovné je u nadřazené akce (ET). Přihlášky do jednotlivých etap mají <code>Fee = 0</code>, takže se nic nezapočítá dvakrát.</li>
+                    <li>Výsledky jsou jen u etap. Pro absenci stačí start v kterékoli etapě.</li>
+                    <li>Půjčovné se bere z nadřazené akce.</li>
+                </ul>
+                <p><b>Štafety:</b> tým se hlásí jako „bez výsledku“, pokud ve výsledcích (mimo DNS) není žádný z jeho úsekářů ani tým stejného jména v kategorii. Když tým na poslední chvíli vymění všechny úsekáře, může vzniknout falešný nález, proto je list určený k prověření.</p>
+
+                <h3>Ověřené chování ORIS API</h3>
+                <ul>
+                    <li><code>getRegistration</code> ignoruje parametr <code>club</code> a vrací celou registraci ČR (asi 2,2 MB). Proto se nepoužívá.</li>
+                    <li><code>getEventList</code> bez <code>all=1</code> vynechává neoficiální akce.</li>
+                    <li>Akce bez výsledků jsou běžné: nadřazené akce ET, semináře, soustředění.</li>
+                    <li>Ve výsledcích jsou i nestartující s <code>Time = DNS</code>.</li>
+                    <li><code>Fee</code> v přihlášce neobsahuje půjčovné. To potvrzuje <code>getEventBalance</code> (<code>FeeEntry</code> a zvlášť <code>FeeSI</code>).</li>
+                    <li>Objednávky služeb neobsahují jméno, jen <code>RegNo</code>.</li>
+                </ul>
+
+                <h3>Výkon a bezpečnost</h3>
+                <ul>
+                    <li>Požadavky běží souběžně (8 najednou), odpovědi chodí komprimované (gzip) a neúspěšné se opakují.</li>
+                    <li>Velký klub a celý rok: asi 380 požadavků místo původních 1 280.</li>
+                    <li>Limity skriptu: 120 s a 256 MB.</li>
+                    <li><code>api.php</code> přijímá jen <code>POST</code> s JSON a validuje vstup.</li>
+                    <li>Hlavička CORS <code>*</code> byla odstraněna (ochrana proti zneužití serveru jako proxy).</li>
+                    <li>PHP chyby se jen logují, do odpovědi se nevypisují.</li>
+                </ul>
+
+                <h3>Doporučený test po nasazení</h3>
+                <ol>
+                    <li>Stejné zadání jako ve staré verzi a porovnání výsledků.</li>
+                    <li>Etapový závod s půjčeným čipem: částka = cena × počet etap.</li>
+                    <li>Závod se štafetou a nějaký závod LOB nebo MTBO.</li>
+                    <li>Kontrolní součty proti vyúčtování akce v ORISu.</li>
+                </ol>
+            </details>
+
+        </div>
+    </div>
+</div>
+</body>
+</html>

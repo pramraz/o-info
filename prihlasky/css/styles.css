@@ -260,6 +260,7 @@ table {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   display: block;
   overflow: hidden;
+  overflow: clip; /* ořez rohů bez vytvoření posuvného kontejneru – umožní position: sticky uvnitř */
 }
 
 td,
@@ -561,4 +562,99 @@ NAVIGATION MENU
 .nav-desc {
   font-size: 14px;
   color: #666;
+}
+
+/* =========================
+SBALITELNÉ ZÁVODY (více než 6 přihlášených)
+========================= */
+.group-controls {
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+button.link-button,
+button.group-summary-btn {
+  width: auto;
+  margin: 0 0 0 8px;
+  padding: 2px 4px;
+  background: transparent;
+  color: #2a6fd6;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+button.group-summary-btn {
+  margin: 0;
+  padding: 4px 0;
+}
+
+button.link-button:hover,
+button.group-summary-btn:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+button.link-button:disabled {
+  background: transparent;
+  color: #999;
+  text-decoration: none;
+}
+
+button.group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 4px;
+  padding: 0;
+  background: transparent;
+  color: #2a6fd6;
+  border: 1px solid #c9d6e8;
+  border-radius: 50%;
+}
+
+button.group-toggle:hover {
+  background: rgba(74, 144, 226, 0.12);
+}
+
+.group-toggle svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.2s ease;
+}
+
+/* sbaleno → šipka doprava, rozbaleno → dolů */
+.group-toggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.group-count {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+/* rozbalený velký závod: údaje o závodu zůstávají při rolování nahoře */
+tbody.is-large td.event-cell {
+  vertical-align: top;
+}
+
+.sticky-cell {
+  position: sticky;
+  top: 8px;
+}
+
+body.dark button.link-button,
+body.dark button.group-summary-btn,
+body.dark button.group-toggle {
+  color: #4da3ff;
+}
+
+body.dark button.group-toggle {
+  border-color: #444;
+}
+
+body.dark .group-count {
+  color: #aaa;
 }

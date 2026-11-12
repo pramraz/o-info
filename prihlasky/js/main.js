@@ -1,1603 +1,953 @@
-const dateFrom = document.getElementById('dateFromInput');
-const dateTo = document.getElementById('dateToInput');
+// O-info – výpis přihlášek z ORIS (podle registračních čísel nebo klubu).
+// Vše běží v prohlížeči, data se čtou přímo z veřejného ORIS API.
 
-const customRadio = document.querySelector('input[name="period"][value="custom"]');
+import { oris, getEventCached, getClubsCached, getUserIdCached, getEventListCached } from "./oris-cache.js";
 
-function activateCustomRadio() {
-    if (customRadio) customRadio.checked = true;
+const ORIS_WEB = "https://oris.ceskyorientak.cz";
+const RELAY_DISCIPLINES = ["RE", "TE", "SR"];
+const MAX_CONCURRENCY = 6;                 // souběžné požadavky na ORIS
+const HISTORY_KEY = "oInfoHistory";
+const HISTORY_SIZE = 5;
+const REG_RE = /^[A-Z]{3}\d{4}$/;
+const CLUB_RE = /^[A-Z]{3}$/;
+const WEEKDAYS = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota"];
+
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------------------
+// Pomocné funkce
+// ---------------------------------------------------------------------------
+
+/** Escapuje text pro vložení do HTML (data z ORIS zadávají pořadatelé a uživatelé). */
+function esc(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-if (dateFrom) dateFrom.addEventListener('change', activateCustomRadio);
-if (dateTo) dateTo.addEventListener('change', activateCustomRadio);
+/** ORIS vrací seznamy jako objekt { "Entry_1": {...} } nebo [] – sjednotí na pole. */
+const asList = data => (data && typeof data === "object" ? Object.values(data) : []);
 
-// Přepínač tématu: načte uložené nastavení, respektuje systémovou preferenci, přepíná kliknutím
-const toggle = document.getElementById("themeToggle");
+const isRelayDiscipline = d => RELAY_DISCIPLINES.includes(d);
 
-// načtení uloženého tématu 123
-const savedTheme = localStorage.getItem("theme");
+/** Datum v místním čase jako "YYYY-MM-DD" (toISOString by kolem půlnoci posunul den kvůli UTC). */
+function localIsoDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
 
-if (toggle) {
-    if (savedTheme === "dark") {
-        document.body.classList.add("dark");
-        toggle.textContent = "☀️";
-    } else {
-        toggle.textContent = "🌙";
+function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+}
+
+// Rankingové kategorie (H20, H21, D20, D21, příp. M21/W21 vč. podkategorií) – odkaz na stránku rankingu
+const RANKING_CLASS_RE = /^[HDMW]2/;
+
+function storageGet(key, fallback) {
+    try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+    } catch {
+        return fallback;
     }
+}
 
-    if (!savedTheme) {
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (prefersDark) {
-            document.body.classList.add("dark");
-            toggle.textContent = "☀️";
+function storageSet(key, value) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+        // plné úložiště nebo soukromý režim – cache/historie není nutná
+    }
+}
+
+/** Promise.all s omezeným počtem souběžných požadavků. */
+async function mapLimit(items, limit, fn) {
+    const results = new Array(items.length);
+    let next = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (next < items.length) {
+            const i = next++;
+            results[i] = await fn(items[i], i);
         }
-    }
-
-    toggle.addEventListener("click", () => {
-        document.body.classList.toggle("dark");
-        const isDark = document.body.classList.contains("dark");
-        toggle.textContent = isDark ? "☀️" : "🌙";
-        localStorage.setItem("theme", isDark ? "dark" : "light");
     });
+    await Promise.all(workers);
+    return results;
 }
 
-
-// Při přepnutí na "konkrétní závod" načte seznam závodů do výběrového seznamu
-document.querySelectorAll('input[name="period"]').forEach(radio => {
-    radio.addEventListener("change", () => {
-        const selected = document.querySelector('input[name="period"]:checked')?.value;
-
-        // načítáme jen pro konkrétní závody
-        if (selected === "event30" || selected === "eventYear") {
-            loadEvents();
-        }
-    });
-});
-
-// ISO datum → "YYYY-MM-DD" string
-function toDateInputFormat(date) {
-    return date.toISOString().split("T")[0];
-}
-
-// Referenční datum pro o-tools ranking (poslední den předchozího měsíce)
-const rankDate = (() => {
-    const now = new Date();
-    return toDateInputFormat(new Date(now.getFullYear(), now.getMonth(), 0));
-})();
-
-let visibleRows = []; // Uchovává záznamy zobrazené v tabulce
-
-
-// URL na soupisky štafet; respektuje aktivní výběr klubu
-function getRelayTeamsLink(eventId) {
-
-    const clubId = document.getElementById("clubSelect")?.value;
-
-    // výběr klubu
-    if (clubId) {
-        return `https://oris.ceskyorientak.cz/PrehledPrihlasenych?id=${eventId}&club=${clubId}&teams=1`;
+/** Startovka závodu; chyba není fatální (startovka nemusí existovat). */
+async function fetchStartList(eventId, clubId = null) {
+    try {
+        const params = { eventid: eventId };
+        if (clubId) params.clubid = clubId;
+        return asList(await oris("getEventStartLists", params));
+    } catch (err) {
+        console.warn("Startovku se nepodařilo načíst:", eventId, err);
+        return [];
     }
-
-    // individuální hledání
-    return `https://oris.ceskyorientak.cz/PrehledPrihlasenych?id=${eventId}&mode=clubs&teams=1`;
 }
+
+// ---------------------------------------------------------------------------
+// Formátování
+// ---------------------------------------------------------------------------
+
+function formatDate(dateStr) {
+    const [y, m, d] = String(dateStr || "").split("-");
+    return d ? `${d}. ${m}. ${y}` : "";
+}
+
+function weekdayOf(dateStr) {
+    const [y, m, d] = String(dateStr || "").split("-").map(Number);
+    return d ? WEEKDAYS[new Date(y, m - 1, d).getDay()] : "";
+}
+
+const formatDateWithWeekday = s => `${formatDate(s)}<br><span class="weekday">(${weekdayOf(s)})</span>`;
+const formatDateWithWeekdayInline = s => `${formatDate(s)} (${weekdayOf(s)})`;
+
+function formatTrack(track) {
+    if (!track || !track.distance) return "";
+    return `${track.distance.toFixed(1).replace(".", ",")} km | ${track.climbing} m | ${track.controls} k`;
+}
+
+function truncate(text, maxLength) {
+    if (!text) return "";
+    return text.length > maxLength ? text.slice(0, maxLength) + "…" : text;
+}
+
+const startTimeOnly = value => (String(value || "").includes(" ") ? value.split(" ")[1] : value || "");
 
 function buildMapyComUrl(lat, lon) {
     if (!lat || !lon || String(lat) === "0" || String(lon) === "0") return "";
-
     const pointId = encodeURIComponent(`${lon},${lat}`);
-    return `http://mapy.com/turisticka?x=${lon}&y=${lat}&z=14&source=coor&id=${pointId}`;
+    return `https://mapy.com/turisticka?x=${lon}&y=${lat}&z=14&source=coor&id=${pointId}`;
 }
 
 function buildMapIconHtml(mapUrl) {
     if (!mapUrl) return "";
-
-    return `<a href="${mapUrl}" target="_blank" title="Zobrazit na Mapy.com" class="map-link"><img src="prihlasky/data/logo-mapy_com.png" alt="Mapa" class="map-icon"></a>`;
+    return `<a href="${esc(mapUrl)}" target="_blank" rel="noopener" title="Zobrazit na Mapy.com" class="map-link"><img src="/prihlasky/data/logo-mapy_com.png" alt="Mapa" class="map-icon"></a>`;
 }
 
-// Vykreslí HTML tabulku; seskupí záznamy po závodech, seřadí chronologicky
-function renderTable(rows, startListMap = {}) {
-    visibleRows = rows;
-
-    const grouped = {};
-    rows.forEach(r => (grouped[r.eventId] = grouped[r.eventId] || []).push(r));
-
-    const sortedGrouped = Object.values(grouped).sort((a, b) =>
-        a[0].dateSortable - b[0].dateSortable ||
-        (a[0].start || "").localeCompare(b[0].start || "")
-    );
-
-    const tbody = document.getElementById("resultsBody");
-    tbody.innerHTML = "";
-    let groupIndex = 0;
-
-    sortedGrouped.forEach(group => {
-        group.sort((a, b) =>
-            (a.startTime || "").localeCompare(b.startTime || "") ||
-            a.name.localeCompare(b.name)
-        );
-
-        const isAlt = groupIndex % 2 === 1;
-        const rowSpan = group.length;
-        const eventId = group[0].eventId;
-        const hasStartList = startListMap[eventId];
-
-
-        group.forEach((row, idx) => {
-            const tr = document.createElement("tr");
-
-
-            if (isAlt) tr.classList.add("alternating");
-
-            if (idx === 0) {
-                tr.innerHTML += `<td rowspan="${rowSpan}" class="date-cell">${formatDateWithWeekday(row.date)}</td>`;
-                tr.innerHTML += `<td rowspan="${rowSpan}">${row.sport}</td>`;
-                tr.innerHTML += `<td rowspan="${rowSpan}"><a href="https://oris.ceskyorientak.cz/Zavod?id=${row.eventId}" target="_blank">${row.eventName}</a></td>`;
-                tr.innerHTML += `<td rowspan="${rowSpan}" class="place-cell">${row.place || ""}</td>`;
-                tr.innerHTML += `<td rowspan="${rowSpan}" class="map-cell">${buildMapIconHtml(row.mapUrl)}</td>`;
-                tr.innerHTML += `<td rowspan="${rowSpan}">${row.organizer} (${row.region})</td>`;
-                tr.innerHTML += `<td rowspan="${rowSpan}">${row.discipline}</td>`;
-                tr.innerHTML += `<td rowspan="${rowSpan}">${row.start}</td>`;
-            }
-
-            const td = document.createElement("td");
-            td.className = "name-cell";
-            td.textContent = row.name + (row.startNumber ? ` (${row.startNumber})` : "");
-            tr.appendChild(td);
-
-            tr.innerHTML += `<td>${buildClassHtml(row)}</td>`;
-
-            tr.innerHTML += `<td>${row.reg}</td>`;
-            tr.innerHTML += `<td>${row.si}</td>`;
-            if (row.startTime) {
-                tr.innerHTML += `<td><a href="https://oris.ceskyorientak.cz/Startovka?id=${row.eventId}#${row.classId}" target="_blank">${row.startTime}</a></td>`;
-            } else {
-                tr.innerHTML += `<td></td>`;
-            }
-            tr.innerHTML += `<td>${formatTrack(row.track)}</td>`;
-
-            if (idx === 0) {
-                const isRelayRow = ["RE", "TE", "SR"].includes(row.discipline);
-                let detailHtml = `<td rowspan="${rowSpan}">`;
-
-                if (row.hasInstructions && row.instructionsUrl) {
-                    detailHtml += `<a href="${row.instructionsUrl}" target="_blank">Pokyny</a><br>`;
-                }
-
-                if (row.hasPreliminaryParams && row.preliminaryParamsUrl) {
-                    detailHtml += `<a href="${row.preliminaryParamsUrl}" target="_blank">Parametry</a><br>`;
-                }
-
-                if (isRelayRow) {
-                    detailHtml += `<a href="${getRelayTeamsLink(row.eventId)}" target="_blank">Soupisky</a><br>`;
-                }
-
-                if (hasStartList) {
-                    detailHtml += `<a href="about:blank" target="_blank" onclick="openStartListTab(event, '${row.eventId}')">Tisk</a><br>`;
-                }
-
-                detailHtml += `</td>`;
-                tr.innerHTML += detailHtml;
-            }
-
-            tbody.appendChild(tr);
-        });
-
-        groupIndex++;
-    });
-
-    document.getElementById("resultsTable").style.display = "table";
+/** URL na soupisky štafet; respektuje aktivní výběr klubu. */
+function getRelayTeamsLink(eventId) {
+    const clubId = $("clubSelect")?.value;
+    return clubId
+        ? `${ORIS_WEB}/PrehledPrihlasenych?id=${eventId}&club=${clubId}&teams=1`
+        : `${ORIS_WEB}/PrehledPrihlasenych?id=${eventId}&mode=clubs&teams=1`;
 }
 
-// Naformátuje parametry tratě (vzdálenost, převýšení, kontroly) do jednoho řetězce
-function formatTrack(track) {
-    if (!track || !track.distance) return "";
+const rankingUrl = (eventId, classId) =>
+    `/prihlasky/ranking.html?event=${encodeURIComponent(eventId)}&class=${encodeURIComponent(classId)}`;
 
-    const dist = track.distance
-        .toFixed(1)
-        .replace(".", ",");
+/**
+ * HTML kategorie. Rankingové kategorie OB na závodě započítávaném do rankingu (Ranking = 1)
+ * odkazují na stránku s přihlášenými seřazenými podle rankingu. Přeřazení se zobrazí jako stará → nová.
+ */
+function buildClassHtml(row) {
+    const linkable = cls => row.sport === "OB" && row.ranking && !isRelayDiscipline(row.discipline) && RANKING_CLASS_RE.test(cls || "");
+    const link = (cls, classId, title) => (linkable(cls) && classId
+        ? `<a title="${title}" href="${esc(rankingUrl(row.eventId, classId))}">${esc(cls)}</a>`
+        : esc(cls));
 
-    return `${dist} km | ${track.climbing} m | ${track.controls} k`;
+    if (row.originalClass && row.originalClass !== row.class) {
+        return `<span class="class-old">${link(row.originalClass, row.originalClassId, "Původní přihlášená kategorie – přihlášení podle rankingu")}</span>`
+            + `<span>→</span><span>${link(row.class, row.classId, "Přeřazeno pořadatelem – přihlášení podle rankingu")}</span>`;
+    }
+    return link(row.class, row.classId, "Přihlášení podle rankingu");
 }
 
-// Sestaví mapu classId → {distance, climbing, controls} z dat závodu
+// ---------------------------------------------------------------------------
+// Transformace dat
+// ---------------------------------------------------------------------------
+
+/** classId → parametry tratě. */
 function buildClassMap(event) {
     const map = {};
-
-    const classes = event.Classes || {};
-
-    Object.values(classes).forEach(c => {
+    asList(event?.Classes).forEach(c => {
         map[String(c.ID)] = {
             distance: parseFloat(c.Distance || 0),
             climbing: c.Climbing || "",
             controls: c.Controls || ""
         };
     });
-
     return map;
 }
 
-// Indexuje startovní listinu závodu podle userId: startovní čas a kategorie
-function buildStartListMaps(startData) {
-    const startTimes = {};
-    const startTimesByReg = {};
-    const startClassMap = {};
-    const startClassMapByReg = {};
-    const startClassIdMap = {};
-    const startClassIdMapByReg = {};
-    const startNumbers = {};
-    const startNumbersByReg = {};
-
+/** Indexuje startovku podle UserID i registračního čísla. */
+function indexStartList(startData) {
+    const byUser = {};
+    const byReg = {};
     startData.forEach(s => {
-        const userId = s.UserID ? String(s.UserID) : "";
-        const regNo = (s.RegNo || "").toUpperCase();
-
-        if (s.StartTime) {
-            const startTime = s.StartTime.includes(" ")
-                ? s.StartTime.split(" ")[1]
-                : s.StartTime;
-            if (userId) startTimes[userId] = startTime;
-            if (regNo) startTimesByReg[regNo] = startTime;
-        }
-
-        if (s.ClassDesc) {
-            if (userId) startClassMap[userId] = s.ClassDesc;
-            if (regNo) startClassMapByReg[regNo] = s.ClassDesc;
-        }
-
-        if (s.ClassID) {
-            if (userId) startClassIdMap[userId] = s.ClassID;
-            if (regNo) startClassIdMapByReg[regNo] = s.ClassID;
-        }
-
-        if (s.StartNumber && s.StartNumber !== "0") {
-            if (userId) startNumbers[userId] = s.StartNumber;
-            if (regNo) startNumbersByReg[regNo] = s.StartNumber;
-        }
+        const info = {
+            startTime: startTimeOnly(s.StartTime),
+            classId: s.ClassID || "",
+            classDesc: s.ClassDesc || "",
+            startNumber: s.StartNumber && s.StartNumber !== "0" ? s.StartNumber : ""
+        };
+        if (s.UserID) byUser[String(s.UserID)] = info;
+        if (s.RegNo) byReg[String(s.RegNo).toUpperCase()] = info;
     });
-
-    return {
-        startTimes,
-        startTimesByReg,
-        startClassMap,
-        startClassMapByReg,
-        startClassIdMap,
-        startClassIdMapByReg,
-        startNumbers,
-        startNumbersByReg
-    };
+    return { byUser, byReg, hasData: startData.length > 0 };
 }
 
-// buildStartListMaps pro více závodů; navíc sleduje, zda startovka existuje
-function buildStartListMapsByEvent(startResults) {
-    const startTimesMap = {};
-    const startTimesByRegMap = {};
-    const startClassMap = {};
-    const startClassByRegMap = {};
-    const startClassIdMap = {};
-    const startClassIdByRegMap = {};
-    const startListMap = {};
-    const startNumbersMap = {};
-    const startNumbersByRegMap = {};
-
-    startResults.forEach(({ eventId, data }) => {
-        startListMap[eventId] = data.length > 0;
-
-        const maps = buildStartListMaps(data);
-
-        startTimesMap[eventId] = maps.startTimes;
-        startTimesByRegMap[eventId] = maps.startTimesByReg;
-        startClassMap[eventId] = maps.startClassMap;
-        startClassByRegMap[eventId] = maps.startClassMapByReg;
-        startClassIdMap[eventId] = maps.startClassIdMap;
-        startClassIdByRegMap[eventId] = maps.startClassIdMapByReg;
-        startNumbersMap[eventId] = maps.startNumbers;
-        startNumbersByRegMap[eventId] = maps.startNumbersByReg;
-    });
-
-    return {
-        startTimesMap,
-        startTimesByRegMap,
-        startClassMap,
-        startClassByRegMap,
-        startClassIdMap,
-        startClassIdByRegMap,
-        startListMap,
-        startNumbersMap,
-        startNumbersByRegMap
-    };
-}
-
-// Zobrazí "žádné přihlášky" v tabulce i kartách
-function showEmptyResult() {
-    document.getElementById("resultsBody").innerHTML =
-        `<tr><td colspan="15" style="text-align:center">Nenalezeny žádné přihlášky.</td></tr>`;
-    document.getElementById("resultsTable").style.display = "table";
-    document.getElementById("resultsCards").innerHTML =
-        `<div class="card"><div class="card-section" style="text-align:center">Nenalezeny žádné přihlášky.</div></div>`;
-    setLoading(false);
-}
-
-// Zjistí přítomnost pokynů (PDF), předběžných parametrů a zda jde o štafetový závod
+/** Pokyny, předběžné parametry, štafeta. */
 function buildEventMeta(event) {
-    const documents = Object.values(event.Documents || {});
-    // Oficiální dokument „Pokyny“ má přednost před soubory, které mají
-    // „pokyny“ pouze ve vlastním popisu (např. jazykové či dílčí varianty).
+    const documents = asList(event?.Documents);
+    // Oficiální dokument „Pokyny“ má přednost před soubory, které mají „pokyny“ jen v popisu.
     const instructionDoc = documents.find(doc => doc.SourceType?.NameCZ === "Pokyny")
         || documents.find(doc => String(doc.OtherDescCZ || "").toLowerCase().includes("pokyny"));
-    const preliminaryDoc = Object.values(event.Documents || {})
-        .filter(doc => {
-            const desc = (doc.OtherDescCZ || "").toLowerCase();
-            return desc.includes("parametry") || desc.includes("délky");
-        })
-        .reduce((latest, current) =>
-            !latest || Number(current.ID) > Number(latest.ID) ? current : latest,
-            null
-        );
+    const preliminaryDoc = documents
+        .filter(doc => /parametry|délky/.test(String(doc.OtherDescCZ || "").toLowerCase()))
+        .reduce((latest, cur) => (!latest || Number(cur.ID) > Number(latest.ID) ? cur : latest), null);
     return {
-        hasInstructions: !!instructionDoc,
         instructionsUrl: instructionDoc?.Url || "",
-        isRelay: ["RE", "TE", "SR"].includes(event?.Discipline?.ShortName),
-        hasPreliminaryParams: !!preliminaryDoc,
-        preliminaryParamsUrl: preliminaryDoc?.Url || ""
+        preliminaryParamsUrl: preliminaryDoc?.Url || "",
+        isRelay: isRelayDiscipline(event?.Discipline?.ShortName)
     };
 }
 
-// Sestaví normalizovaný řádkový objekt pro renderTable / renderCards
-function buildRow(entry, event, { eventId, startTime, startNumber, start, finalClassId, finalClassDesc, cls, isRelay, hasInstructions, instructionsUrl, hasPreliminaryParams, preliminaryParamsUrl }) {
-    return {
-        date: event.Date,
-        dateSortable: new Date(event.Date),
-        eventName: event.Name,
-        sport: event?.Sport?.NameCZ || "",
-        discipline: event?.Discipline?.ShortName || "",
-        start: start ?? event.StartTime ?? "",
-        startTime,
-        startNumber,
-        name: entry.Name,
-        class: finalClassDesc,
-        reg: isRelay ? "-" : (entry.RegNo || "-"),
-        si: isRelay ? "-" : (entry.SI || "-"),
-        eventId,
-        classId: finalClassId,
-        originalClass: entry.ClassDesc,
-        userId: entry.UserID,
-        place: event.Place || "",
-        mapUrl: buildMapyComUrl(event.GPSLat, event.GPSLon),
-        organizer: event.Org1?.Abbr || "",
-        region: event.Region || Object.values(event.Regions || {}).map(r => r.Name).join(", "),
-        regions: Object.values(event.Regions || {}).map(r => r.Name).join(", "),
-        track: cls,
-        hasInstructions,
-        instructionsUrl,
-        hasPreliminaryParams,
-        preliminaryParamsUrl
-    };
-}
+/** Přihlášky jednoho závodu → řádky pro tabulku a karty. */
+function buildRows(entries, event, eventId, startIndex) {
+    const meta = buildEventMeta(event);
+    const classMap = buildClassMap(event);
+    const regions = asList(event.Regions).map(r => r.Name).join(", ");
 
-// Vykreslí tabulku i karty
-function renderResults(rows, startListMap) {
-    renderTable(rows, startListMap);
-    renderCards(rows);
-}
-
-// HTML pro kategorii; závodní OB třídy dostávají o-tools ranking link; přeřazení zobrazí starou → novou
-function buildClassHtml(row) {
-    const isOB = row.sport === "OB";
-    const isTargetClass = /^(H2|D2|M21|W21)/.test(row.class);
-    const isRelay = ["RE", "TE", "SR"].includes(row.discipline);
-
-    let oldClassHtml = row.originalClass || row.class;
-    let newClassHtml = row.class;
-
-    if (isOB && isTargetClass && row.originalClass && !isRelay) {
-        const oldUrl = `http://www.o-tools.rouman.eu/startujici/kategorie.php?zavodid=${row.eventId}&class=${encodeURIComponent(row.originalClass)}&vlny=0&rankdate=${rankDate}`;
-        oldClassHtml = `<a title="Původní přihlášená kategorie" href="${oldUrl}" target="_blank">${oldClassHtml}</a>`;
-        const newUrl = `http://www.o-tools.rouman.eu/startujici/kategorie.php?zavodid=${row.eventId}&class=${encodeURIComponent(row.class)}&vlny=0&rankdate=${rankDate}`;
-        newClassHtml = `<a title="Přeřazeno pořadatelem" href="${newUrl}" target="_blank">${newClassHtml}</a>`;
-    }
-
-    if (row.originalClass && row.originalClass !== row.class) {
-        return `<span class="class-old">${oldClassHtml}</span><span>→</span><span>${newClassHtml}</span>`;
-    }
-    return isOB && isTargetClass && !isRelay
-        ? `<a href="http://www.o-tools.rouman.eu/startujici/kategorie.php?zavodid=${row.eventId}&class=${encodeURIComponent(row.class)}&vlny=0&rankdate=${rankDate}" target="_blank">${row.class}</a>`
-        : row.class;
-}
-
-// Vykreslí mobilní kartové zobrazení (alternativa k tabulce)
-function renderCards(rows) {
-  const container = document.getElementById("resultsCards");
-  container.innerHTML = "";
-
-  // seskupení po závodech
-  const grouped = {};
-  rows.forEach(r => {
-    if (!grouped[r.eventId]) grouped[r.eventId] = [];
-    grouped[r.eventId].push(r);
-  });
-
-  // seřazení závodů chronologicky
-  const sortedGroups = Object.values(grouped).sort((a, b) =>
-        a[0].dateSortable - b[0].dateSortable ||
-        (a[0].start || "").localeCompare(b[0].start || "")
-  );
-
-  // vykreslení karet
-  sortedGroups.forEach(group => {
-
-    // sort uvnitř závodu
-    group.sort((a, b) =>
-      (a.startTime || "").localeCompare(b.startTime || "") ||
-      a.name.localeCompare(b.name)
-    );
-
-    const event = group[0];
-
-    // ikona dle sportu
-    let sportIcon = "🏁";
-    if (event.sport === "OB") sportIcon = "🏃";
-    else if (event.sport === "LOB") sportIcon = "🎿";
-    else if (event.sport === "MTBO") sportIcon = "🚴";
-    else if (event.sport === "Trail") sportIcon = "♿";
-
-    // datum
-    let dateLine = formatDateWithWeekdayInline(event.date);
-
-    // odkaz na závod
-    const eventNameLink = event.eventName
-      ? `<a href="https://oris.ceskyorientak.cz/Zavod?id=${event.eventId}" target="_blank">${event.eventName}</a>`
-      : "ORIS";
-
-    const placeHtml = event.mapUrl && event.place
-      ? `<a href="${event.mapUrl}" target="_blank">${event.place}</a>`
-      : (event.place || "-");
-
-    const eventDiv = document.createElement("div");
-    eventDiv.className = "card";
-
-    // hlavička karty
-    eventDiv.innerHTML = `
-      <div class="card-header">
-        <div class="card-event-name">${sportIcon} ${eventNameLink}</div>
-        <div>${dateLine}</div>
-      </div>
-<div class="card-sub">
-  <span>Start:</span>
-  <span class="card-value">${event.start || "-"}</span><br>
-
-  <span>Pořadatel:</span>
-  <span class="card-value">${event.organizer || "-"}</span><br>
-
-  <span>Disciplína:</span>
-  <span class="card-value">${event.discipline || "-"}</span><br>
-
-  <span>Oblast:</span>
-  <span class="card-value">${event.region || "-"}</span><br>
-
-  <span>Místo:</span>
-  <span class="card-value">${placeHtml}</span><br>
-</div>
-    `;
-    // pokyny a soupisky (jen pokud existují)
-    const isRelayEvent = ["RE", "TE", "SR"].includes(event.discipline);
-
-    if (
-      (event.hasInstructions && event.instructionsUrl) ||
-      isRelayEvent ||
-      (event.hasPreliminaryParams && event.preliminaryParamsUrl)
-    ) {
-
-      const links = [];
-
-      // pokyny (PDF)
-      if (event.hasInstructions && event.instructionsUrl) {
-        links.push(
-          `📄 <a href="${event.instructionsUrl}" target="_blank">Pokyny</a>`
-        );
-      }
-
-      // předběžné parametry tratí
-      if (event.hasPreliminaryParams && event.preliminaryParamsUrl) {
-        links.push(
-          `📈 <a href="${event.preliminaryParamsUrl}" target="_blank">Parametry</a>`
-        );
-      }
-
-      // soupisky štafet
-      if (isRelayEvent) {
-        links.push(
-          `👥 <a href="${getRelayTeamsLink(event.eventId)}" target="_blank">Soupisky</a>`
-        );
-      }
-
-      const linksDiv = document.createElement("div");
-      linksDiv.className = "card-section";
-      linksDiv.innerHTML = links.join("<br>");
-
-      eventDiv.appendChild(linksDiv);
-    }
-
-    // závodníci na tomto závodu
-    group.forEach(row => {
-      const item = document.createElement("div");
-      item.className = "card-section";
-
-      // kategorie
-      const classHtml = buildClassHtml(row);
-
-
-      // startovní čas
-      let startHtml = "-";
-      if (row.startTime) {
-        startHtml = `<a href="https://oris.ceskyorientak.cz/Startovka?id=${row.eventId}#${row.classId}" target="_blank">${row.startTime}</a>`;
-      }
-
-            const trackHtml = (row.track && row.track.distance)
-                ? `📈 ${formatTrack(row.track)}`
-                : `📈 -`;
-
-      item.innerHTML = `
-        ${sportIcon} <strong>${row.name}${row.startNumber ? ` (${row.startNumber})` : ""}</strong><br>
-        Kat: ${classHtml}<br>
-        Reg: ${row.reg} | SI: ${row.si}<br>
-        ${trackHtml}<br>
-        ⏱ ${startHtml}
-      `;
-
-      eventDiv.appendChild(item);
+    return entries.map(entry => {
+        const regNo = String(entry.RegNo || "").toUpperCase();
+        const start = startIndex.byUser[String(entry.UserID)] || startIndex.byReg[regNo] || {};
+        const classId = start.classId || entry.ClassID;
+        return {
+            date: event.Date,
+            eventName: event.Name,
+            sport: event.Sport?.NameCZ || "",
+            discipline: event.Discipline?.ShortName || "",
+            start: event.StartTime || "",
+            startTime: start.startTime || "",
+            startNumber: start.startNumber || "",
+            name: entry.Name || "",
+            class: start.classDesc || entry.ClassDesc || "",
+            originalClass: entry.ClassDesc || "",
+            originalClassId: entry.ClassID || "",
+            ranking: String(event.Ranking) === "1",
+            reg: meta.isRelay ? "-" : (entry.RegNo || "-"),
+            si: meta.isRelay ? "-" : (entry.SI || "-"),
+            eventId: String(eventId),
+            classId,
+            userId: entry.UserID,
+            place: event.Place || "",
+            mapUrl: buildMapyComUrl(event.GPSLat, event.GPSLon),
+            organizer: event.Org1?.Abbr || "",
+            region: event.Region || regions,
+            regions,
+            track: classMap[String(classId)] || {},
+            instructionsUrl: meta.instructionsUrl,
+            preliminaryParamsUrl: meta.preliminaryParamsUrl
+        };
     });
-
-    container.appendChild(eventDiv);
-  });
 }
 
-// Zobrazí / skryje loading indikátor
+/** Řádek startovky jako náhradní „přihláška“ (finále bez přihlášek v ORIS). */
+const startListAsEntry = s => ({
+    UserID: s.UserID, Name: s.Name, RegNo: s.RegNo, SI: s.SI, ClassID: s.ClassID, ClassDesc: s.ClassDesc
+});
+
+// ---------------------------------------------------------------------------
+// Vykreslení
+// ---------------------------------------------------------------------------
+
+let visibleRows = [];                 // řádky aktuálního výpisu (pro tisk)
+const startListCache = new Map();     // eventId → data startovky z posledního načtení (pro tisk)
+
+function groupByEvent(rows) {
+    const grouped = new Map();
+    rows.forEach(r => {
+        if (!grouped.has(r.eventId)) grouped.set(r.eventId, []);
+        grouped.get(r.eventId).push(r);
+    });
+    const groups = [...grouped.values()].sort((a, b) =>
+        a[0].date.localeCompare(b[0].date) || (a[0].start || "").localeCompare(b[0].start || ""));
+    groups.forEach(g => g.sort((a, b) =>
+        (a.startTime || "").localeCompare(b.startTime || "") || a.name.localeCompare(b.name, "cs")));
+    return groups;
+}
+
+function detailLinks(row, hasStartList, { icons = false } = {}) {
+    const links = [];
+    const icon = s => (icons ? `${s} ` : "");
+    if (row.instructionsUrl) links.push(`${icon("📄")}<a href="${esc(row.instructionsUrl)}" target="_blank" rel="noopener">Pokyny</a>`);
+    if (row.preliminaryParamsUrl) links.push(`${icon("📈")}<a href="${esc(row.preliminaryParamsUrl)}" target="_blank" rel="noopener">Parametry</a>`);
+    if (isRelayDiscipline(row.discipline)) links.push(`${icon("👥")}<a href="${esc(getRelayTeamsLink(row.eventId))}" target="_blank" rel="noopener">Soupisky</a>`);
+    if (hasStartList) links.push(`${icon("🖨️")}<a href="#" data-print-event="${esc(row.eventId)}">Tisk</a>`);
+    return links;
+}
+
+const startTimeLink = row => (row.startTime
+    ? `<a href="${ORIS_WEB}/Startovka?id=${esc(row.eventId)}#${esc(row.classId)}" target="_blank" rel="noopener">${esc(row.startTime)}</a>`
+    : "");
+
+const nameWithNumber = row => esc(row.name) + (row.startNumber ? ` (${esc(row.startNumber)})` : "");
+
+const COLLAPSE_THRESHOLD = 6;           // závody s více přihlášenými se zobrazí sbalené
+const expandedEvents = new Set();       // eventId rozbalených velkých závodů
+let renderedGroups = new Map();         // eventId → skupina řádků (pro překreslení jednoho závodu)
+let renderedStartListMap = {};
+
+const isLargeGroup = group => group.length > COLLAPSE_THRESHOLD;
+const isCollapsed = group => isLargeGroup(group) && !expandedEvents.has(group[0].eventId);
+const pluralEntries = n => (n >= 2 && n <= 4 ? `${n} přihlášení` : `${n} přihlášených`);
+
+const CHEVRON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function toggleButton(group) {
+    const expanded = !isCollapsed(group);
+    const label = expanded ? "Sbalit závodníky" : `Rozbalit – ${pluralEntries(group.length)}`;
+    return `<button type="button" class="group-toggle" data-toggle-event="${esc(group[0].eventId)}" aria-expanded="${expanded}" title="${label}" aria-label="${label}">${CHEVRON_SVG}</button>`;
+}
+
+function summaryButton(group, { card = false } = {}) {
+    const collapsed = isCollapsed(group);
+    const text = collapsed ? `▸ ${pluralEntries(group.length)} – zobrazit` : (card ? "▴ Sbalit závodníky" : "");
+    return `<button type="button" class="group-summary-btn" data-toggle-event="${esc(group[0].eventId)}" aria-expanded="${!collapsed}">${text}</button>`;
+}
+
+/** Jeden závod jako samostatný <tbody> – dá se překreslit nezávisle na ostatních. */
+function renderGroupTbody(group, groupIndex, startListMap) {
+    const first = group[0];
+    const large = isLargeGroup(group);
+    const collapsed = isCollapsed(group);
+    const span = collapsed ? 1 : group.length;
+    const alt = groupIndex % 2 === 1 ? ' class="alternating"' : "";
+    // u rozbaleného velkého závodu zůstávají údaje o závodu při rolování viditelné
+    const wrap = html => (large && !collapsed ? `<div class="sticky-cell">${html}</div>` : html);
+    const cell = (cls, html) => `<td rowspan="${span}" class="${cls}">${wrap(html)}</td>`;
+
+    const eventName = `<a href="${ORIS_WEB}/Zavod?id=${esc(first.eventId)}" target="_blank" rel="noopener">${esc(first.eventName)}</a>`
+        + (large && !collapsed ? `<div class="group-count">${pluralEntries(group.length)}</div>` : "");
+    const eventCells =
+        cell("date-cell event-cell", (large ? toggleButton(group) : "") + formatDateWithWeekday(first.date))
+        + cell("event-cell", esc(first.sport))
+        + cell("event-cell", eventName)
+        + cell("place-cell event-cell", esc(first.place))
+        + cell("map-cell event-cell", buildMapIconHtml(first.mapUrl))
+        + cell("event-cell", `${esc(first.organizer)} (${esc(first.region)})`)
+        + cell("event-cell", esc(first.discipline))
+        + cell("event-cell", esc(first.start));
+    const detailCell = cell("event-cell", detailLinks(first, startListMap[first.eventId]).join("<br>"));
+
+    const html = collapsed
+        ? `<tr${alt}>${eventCells}<td colspan="6" class="group-summary">${summaryButton(group)}</td>${detailCell}</tr>`
+        : group.map((row, idx) =>
+            `<tr${alt}>${idx === 0 ? eventCells : ""}`
+            + `<td class="name-cell">${nameWithNumber(row)}</td>`
+            + `<td>${buildClassHtml(row)}</td>`
+            + `<td>${esc(row.reg)}</td>`
+            + `<td>${esc(row.si)}</td>`
+            + `<td>${startTimeLink(row)}</td>`
+            + `<td>${formatTrack(row.track)}</td>`
+            + `${idx === 0 ? detailCell : ""}</tr>`).join("");
+
+    const classes = ["event-group", large ? "is-large" : "", collapsed ? "is-collapsed" : ""].filter(Boolean).join(" ");
+    return `<tbody class="${classes}" data-event-id="${esc(first.eventId)}" data-group-index="${groupIndex}">${html}</tbody>`;
+}
+
+function clearTable() {
+    $("resultsTable").querySelectorAll("tbody.event-group").forEach(t => t.remove());
+    $("resultsBody").innerHTML = "";
+}
+
+function renderTable(groups, startListMap) {
+    clearTable();
+    $("resultsTable").insertAdjacentHTML("beforeend",
+        groups.map((group, i) => renderGroupTbody(group, i, startListMap)).join(""));
+    $("resultsTable").style.display = "table";
+}
+
+const SPORT_ICONS = { OB: "🏃", LOB: "🎿", MTBO: "🚴", Trail: "♿" };
+
+function renderCard(group, startListMap) {
+    const ev = group[0];
+    const icon = SPORT_ICONS[ev.sport] || "🏁";
+    const placeHtml = ev.mapUrl && ev.place
+        ? `<a href="${esc(ev.mapUrl)}" target="_blank" rel="noopener">${esc(ev.place)}</a>`
+        : esc(ev.place || "-");
+    const links = detailLinks(ev, startListMap[ev.eventId], { icons: true });
+
+    const runners = isCollapsed(group) ? "" : group.map(row => `
+        <div class="card-section">
+            ${icon} <strong>${nameWithNumber(row)}</strong><br>
+            Kat: ${buildClassHtml(row)}<br>
+            Reg: ${esc(row.reg)} | SI: ${esc(row.si)}<br>
+            📈 ${formatTrack(row.track) || "-"}<br>
+            ⏱ ${startTimeLink(row) || "-"}
+        </div>`).join("");
+
+    return `
+        <div class="card" data-event-id="${esc(ev.eventId)}">
+            <div class="card-header">
+                <div class="card-event-name">${icon} <a href="${ORIS_WEB}/Zavod?id=${esc(ev.eventId)}" target="_blank" rel="noopener">${esc(ev.eventName || "ORIS")}</a></div>
+                <div>${formatDateWithWeekdayInline(ev.date)}</div>
+            </div>
+            <div class="card-sub">
+                <span>Start:</span> <span class="card-value">${esc(ev.start || "-")}</span><br>
+                <span>Pořadatel:</span> <span class="card-value">${esc(ev.organizer || "-")}</span><br>
+                <span>Disciplína:</span> <span class="card-value">${esc(ev.discipline || "-")}</span><br>
+                <span>Oblast:</span> <span class="card-value">${esc(ev.region || "-")}</span><br>
+                <span>Místo:</span> <span class="card-value">${placeHtml}</span><br>
+            </div>
+            ${links.length ? `<div class="card-section">${links.join("<br>")}</div>` : ""}
+            ${runners}
+            ${isLargeGroup(group) ? `<div class="card-section">${summaryButton(group, { card: true })}</div>` : ""}
+        </div>`;
+}
+
+function renderCards(groups, startListMap) {
+    $("resultsCards").innerHTML = groups.map(group => renderCard(group, startListMap)).join("");
+}
+
+/** Tlačítka „Rozbalit vše / Sbalit vše“ – jen když je ve výpisu aspoň jeden velký závod. */
+function updateGroupControls() {
+    const controls = $("groupControls");
+    if (!controls) return;
+    const large = [...renderedGroups.values()].filter(isLargeGroup);
+    controls.hidden = large.length === 0;
+    controls.querySelector('[data-group-action="expand"]').disabled = !large.some(isCollapsed);
+    controls.querySelector('[data-group-action="collapse"]').disabled = !large.some(g => !isCollapsed(g));
+}
+
+/** Přepne jeden závod a překreslí jen jeho řádky a kartu. */
+function toggleGroup(eventId, sourceEl) {
+    const group = renderedGroups.get(eventId);
+    if (!group) return;
+    if (expandedEvents.has(eventId)) expandedEvents.delete(eventId);
+    else expandedEvents.add(eventId);
+
+    const sel = `[data-event-id="${String(eventId).replace(/["\\]/g, "\\$&")}"]`;
+    const tbody = $("resultsTable").querySelector(`tbody${sel}`);
+    if (tbody) tbody.outerHTML = renderGroupTbody(group, Number(tbody.dataset.groupIndex), renderedStartListMap);
+    const card = $("resultsCards").querySelector(`.card${sel}`);
+    if (card) card.outerHTML = renderCard(group, renderedStartListMap);
+
+    // po sbalení se vrátit na začátek závodu, ať se uživatel neztratí
+    if (!expandedEvents.has(eventId)) {
+        const container = sourceEl?.closest("#resultsCards") ? $("resultsCards") : $("resultsTable");
+        const target = container.querySelector(sel);
+        if (target && target.getBoundingClientRect().top < 0) target.scrollIntoView({ block: "start" });
+    }
+    updateGroupControls();
+}
+
+function setAllGroups(expand) {
+    renderedGroups.forEach((group, eventId) => {
+        if (!isLargeGroup(group)) return;
+        if (expand) expandedEvents.add(eventId);
+        else expandedEvents.delete(eventId);
+    });
+    const groups = [...renderedGroups.values()];
+    renderTable(groups, renderedStartListMap);
+    renderCards(groups, renderedStartListMap);
+    updateGroupControls();
+}
+
+function renderResults(rows, startListMap) {
+    visibleRows = rows;
+    expandedEvents.clear();
+    if (!rows.length) {
+        showEmptyResult();
+        return;
+    }
+    const groups = groupByEvent(rows);
+    renderedGroups = new Map(groups.map(g => [g[0].eventId, g]));
+    renderedStartListMap = startListMap;
+    renderTable(groups, startListMap);
+    renderCards(groups, startListMap);
+    updateGroupControls();
+}
+
+function showEmptyResult() {
+    visibleRows = [];
+    renderedGroups = new Map();
+    clearTable();
+    updateGroupControls();
+    $("resultsBody").innerHTML = `<tr><td colspan="15" style="text-align:center">Nenalezeny žádné přihlášky.</td></tr>`;
+    $("resultsTable").style.display = "table";
+    $("resultsCards").innerHTML = `<div class="card"><div class="card-section" style="text-align:center">Nenalezeny žádné přihlášky.</div></div>`;
+}
+
 function setLoading(isLoading) {
-    document.getElementById("loading").style.display = isLoading ? "flex" : "none";
-    document.getElementById("loadBtn").disabled = isLoading;
-    document.getElementById("loadBtn2").disabled = isLoading;
+    $("loading").style.display = isLoading ? "flex" : "none";
+    $("loadBtn").disabled = isLoading;
+    $("loadBtn2").disabled = isLoading;
 }
 
+// ---------------------------------------------------------------------------
+// Tisk startovních časů
+// ---------------------------------------------------------------------------
 
-// Uloží vstup do localStorage historie (max 5 položek, bez duplicit)
-function saveRegs(input) {
-    let history = JSON.parse(localStorage.getItem("oInfoHistory") || "[]");
+async function openStartListTab(eventId) {
+    // okno otevřít hned (synchronně v obsluze kliknutí), jinak ho prohlížeč zablokuje
+    const win = window.open("", "_blank");
+    if (!win) {
+        alert("Prohlížeč zablokoval otevření okna. Povol popup pro tuto stránku.");
+        return;
+    }
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Startovní listina</title>
+        <style>body{font-family:sans-serif;padding:20px}.user-block{margin-bottom:1em}.user-block div{margin-left:1em}
+        @media print{#printBtn{display:none}}</style></head><body>
+        <button id="printBtn" onclick="window.print()">Tisk</button><p id="msg">Načítám…</p>`);
 
-    // odstraní duplicitní
-    history = history.filter(h => h !== input);
+    try {
+        const rowsForEvent = visibleRows.filter(r => r.eventId === String(eventId));
+        const info = rowsForEvent[0];
+        const entries = startListCache.get(String(eventId)) || await fetchStartList(eventId);
 
-    // přidá na začátek
-    history.unshift(input);
+        const byUser = new Map(rowsForEvent.map(r => [String(r.userId), r]));
+        const byReg = new Map(rowsForEvent.map(r => [String(r.reg || "").toUpperCase(), r]));
+        const findRow = s => byUser.get(String(s.UserID)) || byReg.get(String(s.RegNo || "").toUpperCase());
 
-    // limit (např. 5)
-    history = history.slice(0, 5);
+        const shown = entries
+            .filter(findRow)
+            .sort((a, b) => (startTimeOnly(a.StartTime) || "99:99").localeCompare(startTimeOnly(b.StartTime) || "99:99"));
 
-    localStorage.setItem("oInfoHistory", JSON.stringify(history));
+        let html = `<h2>${esc(formatDate(info.date))} – ${esc(info.eventName)}</h2>
+            <p>Druh: ${esc(info.sport)}<br>Typ: ${esc(info.discipline)}</p>
+            <p>Pořadatel: ${esc(info.organizer)} (${esc(info.regions)})<br>Místo: ${esc(info.place)}<br>Start 00: ${esc(info.start)}</p>
+            <p>Vzdálenost z parkoviště:<br>Vzdálenost na start:<br>Vzdálenost z cíle:<br>
+            Pokyny: ${info.instructionsUrl ? `<a href="${esc(info.instructionsUrl)}" target="_blank">zde</a>` : "—"}</p>`;
+
+        shown.forEach(s => {
+            const row = findRow(s);
+            html += `<div class="user-block">
+                <strong>${esc(s.Name)} (${esc(s.ClassDesc)}, ${esc(s.RegNo)}, ${esc(s.SI)})</strong>
+                <div>${esc(s.ClassDesc)}: ${formatTrack(row?.track) || "—"}</div>
+                <div>startovní čas: ${esc(startTimeOnly(s.StartTime))}</div>
+            </div>`;
+        });
+
+        win.document.getElementById("msg").remove();
+        win.document.write(html + "</body></html>");
+    } catch (err) {
+        console.error("Chyba při načítání startovní listiny:", err);
+        win.document.write("<p>Chyba při načítání startovní listiny.</p></body></html>");
+    }
+    win.document.close();
 }
 
-// Vrátí {from, to} podle aktuálně vybraného přepínače období
-// Precte vstup z URL. Podporuje ?q=SJC8102,SJC8351 i zkracene ?SJC8102,SJC8351
-function getInputFromUrl() {
-    const search = window.location.search.slice(1);
-    const hash = window.location.hash.slice(1);
+// ---------------------------------------------------------------------------
+// Období a výběr závodu
+// ---------------------------------------------------------------------------
 
-    if (search) {
-        const params = new URLSearchParams(search);
-        const namedValue = params.get("q") || params.get("search") || params.get("input") || params.get("regs");
+const getSelectedPeriod = () => document.querySelector('input[name="period"]:checked')?.value || "30";
+const isEventMode = period => period === "event30" || period === "eventYear";
 
-        if (namedValue) {
-            return normalizeUrlInput(namedValue);
-        }
-
-        if (!search.includes("=")) {
-            return normalizeUrlInput(search);
-        }
+function getDateRange(period = getSelectedPeriod()) {
+    const today = new Date();
+    if (period === "30" || period === "event30") {
+        return { from: localIsoDate(today), to: localIsoDate(addDays(today, 30)) };
     }
-
-    if (hash && !hash.includes("=")) {
-        return normalizeUrlInput(hash);
+    if (period === "eventYear") {
+        const y = today.getFullYear();
+        return { from: `${y}-01-01`, to: `${y}-12-31` };
     }
+    return { from: $("dateFromInput").value, to: $("dateToInput").value };
+}
 
+/** Ověří ručně zadané období; vrací chybovou hlášku nebo "". */
+function validateRange({ from, to }) {
+    if (!from || !to) return "Zadej datum od i do.";
+    if (from > to) return "Datum „od“ musí být před datem „do“.";
     return "";
 }
 
-function normalizeUrlInput(value) {
-    return decodeURIComponent(value)
-        .replace(/\+/g, " ")
-        .trim()
-        .toUpperCase()
-        .replace(/\s+/g, "");
-}
-
-function getEventDateRange() {
-    const today = new Date();
-
-    const selectedElement = document.querySelector('input[name="period"]:checked');
-    const selected = selectedElement ? selectedElement.value : "30"; // fallback
-
-    let from, to;
-
-    if (selected === "30" || selected === "event30") {
-        from = today.toISOString().split("T")[0];
-        const d = new Date(today);
-        d.setDate(d.getDate() + 30);
-        to = d.toISOString().split("T")[0];
-
-    } else if (selected === "eventYear") {
-        const start = new Date(today.getFullYear(), 0, 1);
-        const end = new Date(today.getFullYear(), 11, 31);
-
-        from = start.toISOString().split("T")[0];
-        to = end.toISOString().split("T")[0];
-
-    } else if (selected === "custom") {
-        from = document.getElementById("dateFromInput")?.value;
-        to = document.getElementById("dateToInput")?.value;
-    }
-
-    return {
-        from,
-        to
-    };
-}
-
-
-// Načte seznam závodů z ORIS pro výběrový seznam; cachuje v localStorage na 1 hodinu
+/** Seznam závodů do výběru (jeden dotaz, cache 1 h v prohlížeči – viz oris-cache.js). */
 async function loadEvents() {
+    const period = getSelectedPeriod();
+    if (!isEventMode(period)) return;
 
-    const { from, to } = getEventDateRange();
+    const { from, to } = getDateRange(period);
+    const all = $("includeUnofficial")?.checked ? 1 : 0;
+    const eventSelect = $("eventSelect");
 
-    const eventSelect = document.getElementById("eventSelect");
-    const includeUnofficial = document.getElementById("includeUnofficial")?.checked;
-
-
-    // all=1 zahrnuje neoficiální závody
-    const allParam = includeUnofficial ? 1 : 0;
-
-    eventSelect.innerHTML = "<option>Načítám závody...</option>";
-
-    // klíč musí zahrnovat allParam, jinak by se míchaly výsledky s/bez neoficiálních závodů
-    const cacheKey = `${from}_${to}_${allParam}`;
-    const storageKey = "eventListCache_" + cacheKey;
-
-    // localStorage cache
-    const cached = localStorage.getItem(storageKey);
-
-    if (cached) {
-        const parsed = JSON.parse(cached);
-
-        if (Date.now() - parsed.ts < 3600_000) {
-            renderEventOptions(parsed.data);
-            return;
-        }
-    }
-
-    const selected = document.querySelector('input[name="period"]:checked')?.value;
-
-    let events = [];
-
+    eventSelect.innerHTML = "<option value=\"\">Načítám závody...</option>";
+    eventSelect.disabled = true;
     try {
-
-        if (selected === "eventYear") {
-            const year = new Date().getFullYear();
-            const months = Array.from({ length: 12 }, (_, i) => i);
-
-            const promises = months.map(m => {
-                const monthFrom = new Date(year, m, 1).toISOString().split("T")[0];
-                const monthTo = new Date(year, m + 1, 0).toISOString().split("T")[0];
-
-                return fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventList&all=${allParam}&datefrom=${monthFrom}&dateto=${monthTo}`)
-                    .then(res => res.json())
-                    .then(json => Object.values(json?.Data || {}));
-            });
-
-            const results = await Promise.all(promises);
-            events = results.flat();
-
-        } else {
-
-            const res = await fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventList&all=${allParam}&datefrom=${from}&dateto=${to}`);
-            const json = await res.json();
-            events = Object.values(json?.Data || {});
-        }
-
-        // cache
-        localStorage.setItem(storageKey, JSON.stringify({
-            data: events,
-            ts: Date.now()
-        }));
-
-        renderEventOptions(events);
-
+        renderEventOptions(await getEventListCached({ all, datefrom: from, dateto: to }));
     } catch (err) {
-        eventSelect.innerHTML = "<option>Chyba načítání</option>";
         console.error(err);
+        eventSelect.innerHTML = "<option value=\"\">Chyba načítání závodů</option>";
     } finally {
-        setLoading(false);
         eventSelect.disabled = false;
     }
 }
 
-// Zkrátí text na maxLength znaků
-function truncate(text, maxLength) {
-    if (!text) return "";
-    return text.length > maxLength
-        ? text.slice(0, maxLength) + "…"
-        : text;
-}
-
-// Naplní výběrový seznam závody; neoficiální označí šedě
 function renderEventOptions(events) {
-    const eventSelect = document.getElementById("eventSelect");
-    eventSelect.innerHTML = "";
+    const eventSelect = $("eventSelect");
+    const previous = eventSelect.value;
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(new Option("-- vyber závod --", ""));
 
-    events.sort((a, b) => a.Date.localeCompare(b.Date));
-
-    events.forEach(e => {
-        const opt = document.createElement("option");
-        opt.value = e.ID;
-
-        const text = [
-            formatDate(e.Date),
-            e.Sport?.NameCZ,
-            e.Org1?.Abbr,
-            e.Name,
-            e.Discipline?.ShortName,
-            e.Region,
-            truncate(e.Place, 80)
-        ].filter(Boolean).join(", ");
-
-        opt.textContent = text;
-
-        // šedé označení neoficiálních závodů dle Level.ShortName
-        const level = e.Level?.ShortName || "";
-
-        const isUnofficial = /^(OST|PS|REG|ZL|TC)/.test(level);
-
-        if (isUnofficial) {
-            opt.style.color = "#999";
-        }
-
-        eventSelect.appendChild(opt);
+    [...events].sort((a, b) => a.Date.localeCompare(b.Date)).forEach(e => {
+        const text = [formatDate(e.Date), e.Sport?.NameCZ, e.Org1?.Abbr, e.Name, e.Discipline?.ShortName, e.Region, truncate(e.Place, 80)]
+            .filter(Boolean).join(", ");
+        const opt = new Option(text, e.ID);
+        // neoficiální závody šedě
+        if (/^(OST|PS|REG|ZL|TC)/.test(e.Level?.ShortName || "")) opt.style.color = "#999";
+        fragment.appendChild(opt);
     });
+
+    eventSelect.replaceChildren(fragment);
+    if (previous && [...eventSelect.options].some(o => o.value === previous)) eventSelect.value = previous;
 }
 
-
-// Vstupní bod: ověří formát vstupu a odešle do správné načítací funkce
-async function handleLoad() {
-    const inputRaw = document.getElementById("mainInput").value.trim().toUpperCase();
-    const input = inputRaw.replace(/ /g, "");
-    const selectedPeriod = document.querySelector('input[name="period"]:checked')?.value;
-
-    if (!input) {
-        return alert("Zadej registrační číslo nebo zkratku klubu");
-    }
-
-    const isClub = /^[A-Z]{3}$/.test(input);
-    const isReg = /^[A-Z]{3}\d{4}(,[A-Z]{3}\d{4})*$/.test(input);
-
-    // KLUB
-    if (isClub) {
-        await clubsReady;
-        selectClubByAbbr(input);
-        const club = findClubByAbbr(input);
-        if (!club) return alert("Klub v ČSOS neexistuje");
-
-        if (selectedPeriod === "event30" || selectedPeriod === "eventYear") {
-            // konkrétní závod
-            loadClubEntries();
-        } else {
-            // období (multi-event)
-            loadClubEntriesMultiEvent(club.ID);
-        }
-
-        return;
-    }
-
-    // REGISTRACE
-    if (isReg) {
-        const isEventMode = selectedPeriod === "event30" || selectedPeriod === "eventYear";
-
-        if (isEventMode) {
-            loadEntriesSingleEvent();
-        } else {
-            loadEntries();
-        }
-        return;
-    }
-
-    // CHYBA
-    alert("Neplatný vstup - musí být zadán klub ve tvaru XXX nebo registrační číslo ve tvaru XXX1111, příp. více reg. čísel oddělených čárkou.");
-}
+// ---------------------------------------------------------------------------
+// Kluby a historie
+// ---------------------------------------------------------------------------
 
 let clubsCache = [];
 
-
-// Načte seznam všech klubů ČSOS při startu; naplní výběrový seznam a cache
-const clubsReady = fetch("https://oris.ceskyorientak.cz/API/?format=json&method=getCSOSClubList")
-    .then(res => res.json())
-    .then(json => {
-        const clubs = Object.values(json?.Data || {});
-        clubsCache = clubs; // uložíme do paměti
-
-        const select = document.getElementById("clubSelect");
-
-        select.innerHTML = '<option value="">-- výběr klubu --</option>';
-
-        clubs.forEach(c => {
-            const opt = document.createElement("option");
-            opt.value = c.ID;
-            opt.textContent = `${c.Abbr} – ${c.Name}`;
+const clubsReady = getClubsCached()
+    .then(data => {
+        clubsCache = asList(data).sort((a, b) => (a.Abbr || "").localeCompare(b.Abbr || ""));
+        const select = $("clubSelect");
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(new Option("-- výběr klubu --", ""));
+        clubsCache.forEach(c => {
+            const opt = new Option(`${c.Abbr} – ${c.Name}`, c.ID);
             opt.dataset.abbr = c.Abbr;
-            select.appendChild(opt);
+            fragment.appendChild(opt);
         });
-        return clubs;
+        select.replaceChildren(fragment);
+        return clubsCache;
     })
     .catch(err => {
-        console.error("Chyba pri nacitani klubu:", err);
+        console.error("Chyba při načítání klubů:", err);
+        $("clubSelect").innerHTML = '<option value="">Kluby se nepodařilo načíst</option>';
         return [];
     });
 
-// Vyhledá klub v cache podle zkratky
-function findClubByAbbr(abbr) {
-    return clubsCache.find(c => c.Abbr === abbr);
-}
+const findClubByAbbr = abbr => clubsCache.find(c => c.Abbr === abbr);
 
 function selectClubByAbbr(abbr) {
-    const select = document.getElementById("clubSelect");
-    if (!select) return false;
-
-    for (let i = 0; i < select.options.length; i++) {
-        if (select.options[i].dataset.abbr === abbr) {
-            select.selectedIndex = i;
-            return true;
-        }
-    }
-
-    return false;
+    const select = $("clubSelect");
+    const option = [...select.options].find(o => o.dataset.abbr === abbr);
+    if (option) select.value = option.value;
+    return !!option;
 }
 
-// Přihlášky reg. čísel na konkrétní závod (štafety přes getUser + getUserEventEntries)
-async function loadEntriesSingleEvent() {
-    setLoading(true);
+function saveHistory(input) {
+    const history = [input, ...storageGet(HISTORY_KEY, []).filter(h => h !== input)].slice(0, HISTORY_SIZE);
+    storageSet(HISTORY_KEY, history);
+    renderHistory(history);
+}
 
-    const inputRaw = document.getElementById("mainInput").value.trim().toUpperCase();
-    const input = inputRaw.replace(/ /g, "");
-    const selectedEventId = document.getElementById("eventSelect").value;
+function renderHistory(history = storageGet(HISTORY_KEY, [])) {
+    const select = $("historySelect");
+    select.replaceChildren(new Option("-- poslední hodnoty --", ""), ...history.map(h => new Option(h, h)));
+}
 
-    if (!selectedEventId) {
-        setLoading(false);
-        return alert("Vyber konkrétní závod");
+// ---------------------------------------------------------------------------
+// Načítání přihlášek
+// ---------------------------------------------------------------------------
+
+/** Registrační čísla → UserID (neexistující hlásí). */
+async function resolveUsers(registrations) {
+    const users = await mapLimit(registrations, MAX_CONCURRENCY, async reg => {
+        try {
+            return { reg, userId: await getUserIdCached(reg) };
+        } catch {
+            return { reg, userId: null };
+        }
+    });
+    const invalid = users.filter(u => !u.userId).map(u => u.reg);
+    if (invalid.length === users.length) {
+        throw new UserError("Žádná ze zadaných registrací nebyla nalezena:\n" + invalid.join(", "));
     }
+    if (invalid.length) alert("Některé registrace nebyly nalezeny:\n" + invalid.join(", "));
+    return [...new Set(users.filter(u => u.userId).map(u => String(u.userId)))];
+}
 
-    const registrations = input
-        .split(",")
-        .map(r => r.trim().toUpperCase())
-        .filter(r => /^[A-Z]{3}\d{4}$/.test(r));
+/** Chyba se srozumitelnou hláškou pro uživatele. */
+class UserError extends Error {}
 
-    if (!registrations.length) {
-        setLoading(false);
-        return alert("Neplatná registrace");
-    }
+/** Přihlášky uživatelů v období (deduplikované po závodě a uživateli). */
+async function fetchUserEntries(userIds, from, to) {
+    const results = await mapLimit(userIds, MAX_CONCURRENCY, async userId =>
+        asList(await oris("getUserEventEntries", { userid: userId, datefrom: from, dateto: to, _: Date.now() }))
+            .map(e => ({ ...e, UserID: e.UserID || userId })));
+    const seen = new Set();
+    return results.flat().filter(e => {
+        const key = `${e.EventID}-${e.UserID}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
 
-    saveRegs(input);
+/** Registrační čísla, období: přihlášky napříč závody. */
+async function loadRegsMultiEvent(registrations) {
+    const range = getDateRange();
+    const rangeError = validateRange(range);
+    if (rangeError) throw new UserError(rangeError);
 
+    const userIds = await resolveUsers(registrations);
+    const entries = await fetchUserEntries(userIds, range.from, range.to);
+    if (!entries.length) return renderResults([], {});
+
+    const byEvent = new Map();
+    entries.forEach(e => {
+        const id = String(e.EventID);
+        if (!byEvent.has(id)) byEvent.set(id, []);
+        byEvent.get(id).push(e);
+    });
+    const eventIds = [...byEvent.keys()];
+
+    // detaily závodů + startovky jen pro kluby zadaných závodníků (výrazně menší než celé startovky)
+    const startRequests = [];
+    eventIds.forEach(id => {
+        const clubIds = [...new Set(byEvent.get(id).map(e => e.ClubID || ""))];
+        clubIds.forEach(clubId => startRequests.push({ id, clubId }));
+    });
+    const [details, startLists] = await Promise.all([
+        mapLimit(eventIds, MAX_CONCURRENCY, id => getEventCached(id)),
+        mapLimit(startRequests, MAX_CONCURRENCY, r => fetchStartList(r.id, r.clubId || null))
+    ]);
+
+    const startByEvent = new Map();
+    startRequests.forEach((r, i) => startByEvent.set(r.id, [...(startByEvent.get(r.id) || []), ...startLists[i]]));
+
+    const rows = [];
+    const startListMap = {};
+    startListCache.clear();
+    eventIds.forEach((id, i) => {
+        const startData = startByEvent.get(id) || [];
+        const index = indexStartList(startData);
+        startListMap[id] = index.hasData;
+        startListCache.set(id, startData);
+        rows.push(...buildRows(byEvent.get(id), details[i] || {}, id, index));
+    });
+    renderResults(rows, startListMap);
+}
+
+/** Registrační čísla, konkrétní závod (individuální i štafety). */
+async function loadRegsSingleEvent(registrations, eventId) {
     const regSet = new Set(registrations);
+    const [event, startData, userIds] = await Promise.all([
+        getEventCached(eventId),
+        fetchStartList(eventId),
+        resolveUsers(registrations)
+    ]);
 
-    try {
+    // přihlášky jen z data závodu – místo stažení všech přihlášek závodu
+    const date = event?.Date;
+    let entries = (await fetchUserEntries(userIds, date, date)).filter(e => String(e.EventID) === String(eventId));
 
-        // detaily závodu a startovka paralelně
-        const [eventData, startDataRaw] = await Promise.all([
-            fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEvent&id=${selectedEventId}`)
-                .then(res => res.json()),
-
-            fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventStartLists&eventid=${selectedEventId}`)
-                .then(res => res.json())
-        ]);
-
-        const event = eventData?.Data || {};
-        const { hasInstructions, instructionsUrl, isRelay, hasPreliminaryParams, preliminaryParamsUrl } = buildEventMeta(event);
-
-        let allEntries = [];
-
-        // individuální závod
-        if (!isRelay) {
-
-            const entriesData = await fetch(
-                `https://oris.ceskyorientak.cz/API/?format=json&method=getEventEntries&eventid=${selectedEventId}`
-            ).then(res => res.json());
-
-            allEntries = Object.values(entriesData?.Data || {})
-                .filter(e =>
-                    regSet.has((e.RegNo || "").toUpperCase())
-                );
-        }
-
-// štafety: user ID podle registrace, pak přihlášky
-else {
-
-    // 1) userId pro každou registraci
-    const userResults = await Promise.all(
-
-        registrations.map(async reg => {
-
-            try {
-
-                const userJson = await fetch(
-                    `https://oris.ceskyorientak.cz/API/?format=json&method=getUser&rgnum=${reg}`
-                ).then(res => res.json());
-
-                return userJson?.Data?.ID || null;
-
-            } catch (err) {
-
-                console.error("Chyba getUser:", reg, err);
-                return null;
-            }
-        })
-    );
-
-    // deduplicate
-    const uniqueUserIds = [...new Set(
-        userResults.filter(Boolean)
-    )];
-
-    // 2) přihlášky na vybraný závod
-    const entryResults = await Promise.all(
-
-        uniqueUserIds.map(async userId => {
-
-            try {
-
-                const entriesJson = await fetch(
-                    `https://oris.ceskyorientak.cz/API/?format=json&method=getUserEventEntries&userid=${userId}`
-                ).then(res => res.json());
-
-                const entries = Object.values(entriesJson?.Data || {});
-
-                // jen vybraný závod
-                return entries.filter(e =>
-                    String(e.EventID) === String(selectedEventId)
-                );
-
-            } catch (err) {
-
-                console.error(
-                    "Chyba getUserEventEntries:",
-                    userId,
-                    err
-                );
-
-                return [];
-            }
-        })
-    );
-
-    allEntries = entryResults.flat();
-}
-
-        const startData = Object.values(startDataRaw?.Data || {});
-        const classMap = buildClassMap(event);
-
-        if (!allEntries.length && startData.length) {
-            allEntries = startData
-                .filter(s => regSet.has((s.RegNo || "").toUpperCase()))
-                .map(s => ({
-                    UserID: s.UserID,
-                    Name: s.Name,
-                    RegNo: s.RegNo,
-                    SI: s.SI,
-                    ClassID: s.ClassID,
-                    ClassDesc: s.ClassDesc
-                }));
-        }
-
-        const {
-            startTimes,
-            startTimesByReg,
-            startClassMap,
-            startClassMapByReg,
-            startClassIdMap,
-            startClassIdMapByReg
-        } = buildStartListMaps(startData);
-
-        const rows = allEntries.map(e => {
-            const userId = String(e.UserID);
-            const regNo = (e.RegNo || "").toUpperCase();
-            const finalClassId = startClassIdMap[userId] || startClassIdMapByReg[regNo] || e.ClassID;
-            const finalClassDesc = startClassMap[userId] || startClassMapByReg[regNo] || e.ClassDesc;
-            const cls = classMap[String(finalClassId)] || {};
-            return buildRow(e, event, {
-                eventId: selectedEventId,
-                startTime: startTimes[userId] || startTimesByReg[regNo] || "",
-                startNumber: startNumbers[userId] || startNumbersByReg[regNo] || "",
-                start: event.StartTime,
-                finalClassId,
-                finalClassDesc,
-                cls,
-                isRelay,
-                hasInstructions,
-                instructionsUrl,
-                hasPreliminaryParams,
-                preliminaryParamsUrl
-            });
-        });
-
-        if (!rows.length) { showEmptyResult(); return; }
-
-        const startListMap = {};
-        startListMap[selectedEventId] = startData.length > 0;
-
-        renderResults(rows, startListMap);
-
-    } catch (err) {
-
-        console.error(err);
-        alert("Chyba při načítání");
+    // finále bez přihlášek: závodníci ze startovky
+    if (!entries.length && startData.length) {
+        entries = startData.filter(s => regSet.has(String(s.RegNo || "").toUpperCase())).map(startListAsEntry);
     }
 
-    setLoading(false);
+    startListCache.clear();
+    startListCache.set(String(eventId), startData);
+    const index = indexStartList(startData);
+    renderResults(buildRows(entries, event, eventId, index), { [eventId]: index.hasData });
 }
 
+/** Klub, období: jen závody, kde má klub přihlášky nebo startující (myClubId). */
+async function loadClubMultiEvent(club) {
+    const range = getDateRange();
+    const rangeError = validateRange(range);
+    if (rangeError) throw new UserError(rangeError);
 
-// Přihlášky reg. čísel napříč závody v daném období
-async function loadEntries() {
+    const events = asList(await oris("getEventList", { all: 1, datefrom: range.from, dateto: range.to, myClubId: club.ID }));
+    const count = (e, field) => (e[field] === undefined ? null : Number(e[field]) || 0);
+    // údaj chybí → raději stáhnout; ClubStartCount zachytí i finále bez přihlášek
+    const relevant = events.filter(e => count(e, "ClubEntryCount") !== 0 || (count(e, "ClubStartCount") || 0) > 0);
+    if (!relevant.length) return renderResults([], {});
+
+    const results = await mapLimit(relevant, MAX_CONCURRENCY, async e => {
+        const id = String(e.ID);
+        const [entries, detail, startData] = await Promise.all([
+            oris("getEventEntries", { eventid: id, clubid: club.ID, _: Date.now() }).then(asList),
+            getEventCached(id),
+            fetchStartList(id, club.ID)
+        ]);
+        return { id, entries: entries.length ? entries : startData.map(startListAsEntry), detail, startData };
+    });
+
+    const rows = [];
+    const startListMap = {};
+    startListCache.clear();
+    results.forEach(({ id, entries, detail, startData }) => {
+        const index = indexStartList(startData);
+        startListMap[id] = index.hasData;
+        startListCache.set(id, startData);
+        rows.push(...buildRows(entries, detail || {}, id, index));
+    });
+    renderResults(rows, startListMap);
+}
+
+/** Klub, konkrétní závod. */
+async function loadClubSingleEvent(club, eventId) {
+    const [entriesRaw, event, startData] = await Promise.all([
+        oris("getEventEntries", { eventid: eventId, clubid: club.ID, _: Date.now() }).then(asList),
+        getEventCached(eventId),
+        fetchStartList(eventId)
+    ]);
+
+    let entries = entriesRaw;
+    // finále bez přihlášek: členové klubu ze startovky
+    if (!entries.length && startData.length) {
+        entries = startData
+            .filter(s => String(s.ClubID) === String(club.ID) || String(s.RegNo || "").toUpperCase().startsWith(club.Abbr))
+            .map(startListAsEntry);
+    }
+
+    startListCache.clear();
+    startListCache.set(String(eventId), startData);
+    const index = indexStartList(startData);
+    renderResults(buildRows(entries, event, eventId, index), { [eventId]: index.hasData });
+}
+
+/** Vstupní bod: ověří vstup a zavolá správný způsob načtení. */
+async function handleLoad() {
+    const input = $("mainInput").value.toUpperCase().replace(/\s+/g, "");
+    const period = getSelectedPeriod();
+
+    if (!input) return alert("Zadej registrační číslo nebo zkratku klubu");
+
+    const registrations = input.split(",").filter(Boolean);
+    const isClub = CLUB_RE.test(input);
+    const isRegs = registrations.length > 0 && registrations.every(r => REG_RE.test(r));
+    if (!isClub && !isRegs) {
+        return alert("Neplatný vstup - musí být zadán klub ve tvaru XXX nebo registrační číslo ve tvaru XXX1111, příp. více reg. čísel oddělených čárkou.");
+    }
+
+    const eventId = $("eventSelect").value;
+    if (isEventMode(period) && !eventId) return alert("Vyber konkrétní závod");
+
     setLoading(true);
-
-    const inputRaw = document.getElementById("mainInput").value.trim().toUpperCase();
-    const input = inputRaw.replace(/ /g, "");
-    saveRegs(input);
-
-    const registrations = input
-        .split(",")
-        .map(r => r.trim().toUpperCase())
-        .filter(r => /^[A-Z]{3}\d{4}$/.test(r));
-
-    if (!registrations.length) {
+    try {
+        if (isClub) {
+            await clubsReady;
+            const club = findClubByAbbr(input);
+            if (!club) throw new UserError("Klub v ČSOS neexistuje");
+            selectClubByAbbr(input);
+            saveHistory(input);
+            await (isEventMode(period) ? loadClubSingleEvent(club, eventId) : loadClubMultiEvent(club));
+        } else {
+            const unique = [...new Set(registrations)];
+            saveHistory(unique.join(","));
+            $("clubSelect").value = "";
+            await (isEventMode(period) ? loadRegsSingleEvent(unique, eventId) : loadRegsMultiEvent(unique));
+        }
+    } catch (err) {
+        console.error(err);
+        alert(err instanceof UserError ? err.message : "Chyba při načítání dat z ORIS. Zkus to prosím znovu.");
+    } finally {
         setLoading(false);
-        return alert("Zadej alespoň jednu platnou registraci (např. SJC8351)");
     }
+}
 
-    const timestamp = Date.now();
-    const seenEntries = new Set();
-    const allEntries = [];
+// ---------------------------------------------------------------------------
+// Vstup z URL: ?SJC8102,SJC8351, ?SJC, ?q=… nebo #…
+// ---------------------------------------------------------------------------
 
-    const { from: dateFrom, to: dateTo } = getEventDateRange();
-
+function normalizeUrlInput(value) {
     try {
-        // USERS
-        const userResults = await Promise.all(
-            registrations.map(reg =>
-                fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getUser&rgnum=${reg}`)
-                    .then(res => res.json())
-                    .then(data => ({
-                        reg,
-                        userId: data?.Data?.ID || null
-                    }))
-            )
-        );
-
-        const validUsers = userResults.filter(u => u.userId);
-        const invalidRegistrations = userResults.filter(u => !u.userId).map(u => u.reg);
-
-        if (!validUsers.length) {
-            setLoading(false);
-            return alert("Žádná ze zadaných registrací nebyla nalezena:\n" + invalidRegistrations.join(", "));
-        }
-
-        if (invalidRegistrations.length > 0) {
-            alert("Některé registrace nebyly nalezeny:\n" + invalidRegistrations.join(", "));
-        }
-
-        const uniqueUserIds = [...new Set(validUsers.map(u => u.userId))];
-
-        // ENTRIES
-        const entryResults = await Promise.all(
-            uniqueUserIds.map(userId =>
-                fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getUserEventEntries&userid=${userId}&datefrom=${dateFrom}&dateto=${dateTo}&_=${timestamp}`)
-                    .then(res => res.json())
-                    .then(data => ({
-                        userId,
-                        entries: Object.values(data?.Data || {})
-                    }))
-            )
-        );
-
-        entryResults.forEach(({ userId, entries }) => {
-            entries.forEach(e => {
-                const key = `${e.EventID}-${userId}`;
-                if (!seenEntries.has(key)) {
-                    e.UserID = userId;
-                    allEntries.push(e);
-                    seenEntries.add(key);
-                }
-            });
-        });
-
-        if (!allEntries.length) { showEmptyResult(); return; }
-
-        const eventIds = [...new Set(allEntries.map(e => e.EventID))];
-
-        // EVENTS
-        const eventResults = await Promise.all(
-            eventIds.map(id =>
-                fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEvent&id=${id}`)
-                    .then(res => res.json())
-                    .then(data => ({
-                        id,
-                        data: data.Data
-                    }))
-            )
-        );
-
-        const events = {};
-        const classMaps = {};
-
-        eventResults.forEach(e => {
-            events[e.id] = e.data;
-            classMaps[e.id] = buildClassMap(e.data);
-        });
-
-        // STARTLISTS
-        const startResults = await Promise.all(
-            eventIds.map(id =>
-                fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventStartLists&eventid=${id}`)
-                    .then(res => res.json())
-                    .then(json => ({
-                        eventId: id,
-                        data: Object.values(json?.Data || {})
-                    }))
-            )
-        );
-
-        const {
-            startTimesMap,
-            startTimesByRegMap,
-            startClassMap,
-            startClassByRegMap,
-            startClassIdMap,
-            startClassIdByRegMap,
-            startListMap,
-            startNumbersMap,
-            startNumbersByRegMap
-        } = buildStartListMapsByEvent(startResults);
-
-        // transformace
-        const rows = allEntries.map(entry => {
-            const event = events[entry.EventID];
-            const { hasInstructions, instructionsUrl, isRelay, hasPreliminaryParams, preliminaryParamsUrl } = buildEventMeta(event);
-            const classMap = classMaps[entry.EventID] || {};
-            const userId = String(entry.UserID);
-            const regNo = (entry.RegNo || "").toUpperCase();
-            const finalClassId = startClassIdMap[entry.EventID]?.[userId] || startClassIdByRegMap[entry.EventID]?.[regNo] || entry.ClassID;
-            const finalClassDesc = startClassMap[entry.EventID]?.[userId] || startClassByRegMap[entry.EventID]?.[regNo] || entry.ClassDesc;
-            const cls = classMap[String(finalClassId)] || {};
-            return buildRow(entry, event, {
-                eventId: entry.EventID,
-                startTime: startTimesMap[entry.EventID]?.[userId] || startTimesByRegMap[entry.EventID]?.[regNo] || "",
-                startNumber: startNumbersMap[entry.EventID]?.[userId] || startNumbersByRegMap[entry.EventID]?.[regNo] || "",
-                start: event.StartTime,
-                finalClassId,
-                finalClassDesc,
-                cls,
-                isRelay,
-                hasInstructions,
-                instructionsUrl,
-                hasPreliminaryParams,
-                preliminaryParamsUrl
-            });
-        });
-
-        renderResults(rows, startListMap);
-
-    } catch (err) {
-        console.error(err);
-        alert("Chyba při načítání dat");
+        value = decodeURIComponent(value);
+    } catch {
+        // neplatné % kódování – použije se tak, jak je
     }
-
-    setLoading(false);
+    return value.replace(/\+/g, " ").toUpperCase().replace(/\s+/g, "");
 }
 
-// Formátování datumu z ISO na český formát
-function formatDate(dateStr) {
-    const [y, m, d] = dateStr.split("-");
-    return `${d}. ${m}. ${y}`;
-}
-
-function formatDateWithWeekday(dateStr) {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const weekdays = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota"];
-    const weekday = weekdays[new Date(y, m - 1, d).getDay()];
-
-    return `${formatDate(dateStr)}<br><span class="weekday">(${weekday})</span>`;
-}
-
-function formatDateWithWeekdayInline(dateStr) {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const weekdays = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota"];
-    const weekday = weekdays[new Date(y, m - 1, d).getDay()];
-
-    return `${formatDate(dateStr)} (${weekday})`;
-}
-
-// Otevření startovní listiny do nového okna
-async function openStartListTab(e, eventId) {
-    e.preventDefault();
-
-    const url = `https://oris.ceskyorientak.cz/API/?format=json&method=getEventStartLists&eventid=${eventId}`;
-    const newWindow = window.open("", "_blank");
-    if (!newWindow) {
-        alert("Prohlížeč zablokoval otevření okna. Povol popup pro tuto stránku.");
-        return;
+function getInputFromUrl() {
+    const search = window.location.search.slice(1);
+    const hash = window.location.hash.slice(1);
+    if (search) {
+        const params = new URLSearchParams(search);
+        const named = params.get("q") || params.get("search") || params.get("input") || params.get("regs");
+        if (named) return normalizeUrlInput(named);
+        if (!search.includes("=")) return normalizeUrlInput(search);
     }
-
-    newWindow.document.write(`
-      <!DOCTYPE html>
-      <html><head><meta charset='utf-8'>
-      <title>Startovní listina</title>
-      <style>
-        body{font-family:sans-serif;padding:20px;}
-        .user-block{margin-bottom:1em;}
-        .user-block div{margin-left:1em;}
-        @media print { #printBtn { display: none; } }
-      </style></head><body>
-    `);
-
-    newWindow.document.write("<button id='printBtn' onclick='window.print()'>Tisk</button>");
-
-    try {
-        const response = await fetch(url);
-        const json = await response.json();
-        const entries = Object.values(json?.Data || {});
-
-        // filtr na závodníky z aktuálního zobrazení
-        const rowsForEvent = visibleRows.filter(r => r.eventId == eventId);
-        const usersToShow = rowsForEvent.map(r => Number(r.userId));
-        const regsToShow = rowsForEvent.map(r => (r.reg || "").toUpperCase());
-
-        const eventInfo = rowsForEvent[0];
-        const instructionsUrl = eventInfo?.instructionsUrl || "";
-const hasInstructions = eventInfo?.hasInstructions;
-
-        // userId → row pro přístup k parametrům tratě
-        const rowMap = {};
-        const rowMapByReg = {};
-        rowsForEvent.forEach(r => {
-            rowMap[String(r.userId)] = r;
-            rowMapByReg[(r.reg || "").toUpperCase()] = r;
-        });
-
-        newWindow.document.write(`<h2>${formatDate(eventInfo.date)} – ${eventInfo.eventName}</h2>`);
-        newWindow.document.write(`<p>Druh: ${eventInfo.sport}<br>Typ: ${eventInfo.discipline}</p>`);
-        newWindow.document.write(`<p>Pořadatel: ${eventInfo.organizer} (${eventInfo.regions})<br>Místo: ${eventInfo.place}<br>Start 00: ${eventInfo.start}</p>`);
-
-let pokynyHtml = "—";
-
-if (hasInstructions && instructionsUrl) {
-    pokynyHtml = `<a href="${instructionsUrl}" target="_blank">zde</a>`;
+    if (hash && !hash.includes("=")) return normalizeUrlInput(hash);
+    return "";
 }
 
-newWindow.document.write(`
-  <p>
-    Vzdálenost z parkoviště:<br>
-    Vzdálenost na start:<br>
-    Vzdálenost z cíle:<br>
-    Pokyny: ${pokynyHtml}
-  </p>
-`);
+// ---------------------------------------------------------------------------
+// Přepínač tématu
+// ---------------------------------------------------------------------------
 
-        const filteredEntries = entries.filter(entry =>
-            usersToShow.includes(Number(entry.UserID)) ||
-            regsToShow.includes((entry.RegNo || "").toUpperCase())
-        );
+function initTheme() {
+    const toggle = $("themeToggle");
+    if (!toggle) return;
+    let saved = null;
+    try { saved = localStorage.getItem("theme"); } catch { /* bez úložiště */ }
+    const dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.body.classList.toggle("dark", dark);
+    toggle.textContent = dark ? "☀️" : "🌙";
 
-        filteredEntries.sort((a, b) => {
-            const timeA = (a.StartTime || "").split(" ")[1] || "99:99";
-            const timeB = (b.StartTime || "").split(" ")[1] || "99:99";
-            return timeA.localeCompare(timeB);
-        });
-
-        for (const entry of filteredEntries) {
-            const name = entry.Name || "";
-            const cls = entry.ClassDesc || "";
-            const reg = entry.RegNo || "";
-            const si = entry.SI || "";
-
-            const startTimeFull = entry.StartTime || "";
-            const startTime = startTimeFull.includes(" ")
-                ? startTimeFull.split(" ")[1]
-                : startTimeFull;
-
-            // vezmi trať z rowMap
-            const row = rowMap[String(entry.UserID)] || rowMapByReg[(entry.RegNo || "").toUpperCase()];
-            const trackText = row?.track ? formatTrack(row.track) : "—";
-
-            newWindow.document.write(`
-                <div class='user-block'>
-                    <strong>${name} (${cls}, ${reg}, ${si})</strong>
-                    <div>${cls}: ${trackText}</div>
-                    <div>startovní čas: ${startTime}</div>
-                </div>
-            `);
-        }
-
-        newWindow.document.write("</body></html>");
-        newWindow.document.close();
-
-    } catch (err) {
-        console.error("Chyba při načítání startovní listiny:", err);
-        newWindow.document.write("<p>Chyba při načítání startovní listiny.</p></body></html>");
-        newWindow.document.close();
-    }
+    toggle.addEventListener("click", () => {
+        const isDark = document.body.classList.toggle("dark");
+        toggle.textContent = isDark ? "☀️" : "🌙";
+        try { localStorage.setItem("theme", isDark ? "dark" : "light"); } catch { /* bez úložiště */ }
+    });
 }
 
-window.openStartListTab = openStartListTab;
+// ---------------------------------------------------------------------------
+// Inicializace
+// ---------------------------------------------------------------------------
 
-// Přihlášky klubu napříč závody; detaily táhne jen pro závody, kde klub startuje
-async function loadClubEntriesMultiEvent(clubId) {
-    setLoading(true);
+function init() {
+    initTheme();
+    renderHistory();
 
-    const { from, to } = getEventDateRange();
-    const timestamp = Date.now();
-
-    try {
-        // 1. seznam závodů v období
-        const res = await fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventList&all=1&datefrom=${from}&dateto=${to}`);
-        const json = await res.json();
-        const allEvents = Object.values(json?.Data || {});
-
-        if (!allEvents.length) {
-            alert("Žádné závody v období");
-            setLoading(false);
-            return;
-        }
-
-        // 2. přihlášky klubu pro všechny závody paralelně
-        const entryResults = await Promise.all(
-            allEvents.map(e =>
-                fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventEntries&eventid=${e.ID}&clubid=${clubId}&_=${timestamp}`)
-                    .then(res => res.json())
-                    .then(data => ({ event: e, entries: Object.values(data?.Data || {}) }))
-            )
-        );
-
-        // 3. filtr – jen závody, kde má klub přihlášky
-        const relevantResults = entryResults.filter(r => r.entries.length > 0);
-
-        if (!relevantResults.length) { showEmptyResult(); return; }
-
-        const relevantEventIds = relevantResults.map(r => r.event.ID);
-
-        // 4. detaily + startovky jen pro relevantní závody (paralelně)
-        const [detailResults, startResults] = await Promise.all([
-            Promise.all(
-                relevantEventIds.map(id =>
-                    fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEvent&id=${id}`)
-                        .then(res => res.json())
-                        .then(data => ({ id, data: data?.Data || {} }))
-                )
-            ),
-            Promise.all(
-                relevantEventIds.map(id =>
-                    fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventStartLists&eventid=${id}`)
-                        .then(res => res.json())
-                        .then(json => ({ eventId: id, data: Object.values(json?.Data || {}) }))
-                )
-            )
-        ]);
-
-        const eventDetailsMap = {};
-        const classMaps = {};
-        detailResults.forEach(({ id, data }) => {
-            eventDetailsMap[id] = data;
-            classMaps[id] = buildClassMap(data);
-        });
-
-        const { startTimesMap, startTimesByRegMap, startClassMap, startClassByRegMap, startClassIdMap, startClassIdByRegMap, startListMap, startNumbersMap, startNumbersByRegMap } =
-            buildStartListMapsByEvent(startResults);
-
-        // 5. sestavení řádků
-        const rows = [];
-        relevantResults.forEach(({ event, entries }) => {
-            const eventDetail = eventDetailsMap[event.ID] || {};
-            const classMap = classMaps[event.ID] || {};
-            const { hasInstructions, instructionsUrl, isRelay, hasPreliminaryParams, preliminaryParamsUrl } = buildEventMeta(eventDetail);
-
-            entries.forEach(e => {
-                const userId = String(e.UserID);
-                const regNo = (e.RegNo || "").toUpperCase();
-                const finalClassId = startClassIdMap[event.ID]?.[userId] || startClassIdByRegMap[event.ID]?.[regNo] || e.ClassID;
-                const finalClassDesc = startClassMap[event.ID]?.[userId] || startClassByRegMap[event.ID]?.[regNo] || e.ClassDesc;
-                const cls = classMap[String(finalClassId)] || {};
-                rows.push(buildRow(e, eventDetail, {
-                    eventId: event.ID,
-                    startTime: startTimesMap[event.ID]?.[userId] || startTimesByRegMap[event.ID]?.[regNo] || "",
-                    startNumber: startNumbersMap[event.ID]?.[userId] || startNumbersByRegMap[event.ID]?.[regNo] || "",
-                    start: eventDetail.StartTime,
-                    finalClassId,
-                    finalClassDesc,
-                    cls,
-                    isRelay,
-                    hasInstructions,
-                    instructionsUrl,
-                    hasPreliminaryParams,
-                    preliminaryParamsUrl
-                }));
-            });
-        });
-
-        renderResults(rows, startListMap);
-
-    } catch (err) {
-        console.error(err);
-        alert("Chyba při načítání klubových dat");
-    }
-
-    setLoading(false);
-}
-
-// Přihlášky klubu na konkrétní vybraný závod
-async function loadClubEntries() {
-    const clubSelect = document.getElementById("clubSelect");
-    const clubId = clubSelect.value;
-
-    if (!clubId) {
-        return alert("Vyber klub");
-    }
-
-    const eventId = document.getElementById("eventSelect").value;
-
-    if (!eventId) return;  // clubId check je už výše — stačí jen eventId
-
-    setLoading(true);
-
-    const timestamp = Date.now();
-
-    try {
-        const res = await fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventEntries&eventid=${eventId}&clubid=${clubId}&_=${timestamp}`);
-        const json = await res.json();
-        const entries = Object.values(json?.Data || {});
-        let finalEntries = [...entries];
-
-        // event info + startovka paralelně (startovka potřebná i pro fallback)
-        const [evData, startJson] = await Promise.all([
-            fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEvent&id=${eventId}`).then(r => r.json()),
-            fetch(`https://oris.ceskyorientak.cz/API/?format=json&method=getEventStartLists&eventid=${eventId}`).then(r => r.json())
-        ]);
-        const event = evData.Data;
-
-        // mapa tříd (jen 1×)
-        const classMap = buildClassMap(event);
-
-        const startData = Object.values(startJson?.Data || {});
-
-        // fallback pro finále bez přihlášek: filtruj startovku dle zkratky klubu
-        if (!finalEntries.length && startData.length) {
-            const clubAbbr = clubSelect.selectedOptions[0]?.dataset?.abbr || "";
-            finalEntries = startData
-                .filter(s => (s.RegNo || "").toUpperCase().startsWith(clubAbbr))
-                .map(s => ({
-                    UserID: s.UserID,
-                    Name: s.Name,
-                    RegNo: s.RegNo,
-                    SI: s.SI,
-                    ClassID: s.ClassID,
-                    ClassDesc: s.ClassDesc
-                }));
-        }
-
-        if (!finalEntries.length) { showEmptyResult(); return; }
-
-        const { startTimes, startTimesByReg, startClassMap, startClassMapByReg, startClassIdMap, startClassIdMapByReg, startNumbers, startNumbersByReg } =
-            buildStartListMaps(startData);
-
-        const { hasInstructions, instructionsUrl, isRelay, hasPreliminaryParams, preliminaryParamsUrl } = buildEventMeta(event);
-
-        // transformace
-        const rows = finalEntries.map(e => {
-            const userId = String(e.UserID);
-            const regNo = (e.RegNo || "").toUpperCase();
-            const finalClassId = startClassIdMap[userId] || startClassIdMapByReg[regNo] || e.ClassID;
-            const finalClassDesc = startClassMap[userId] || startClassMapByReg[regNo] || e.ClassDesc;
-            const cls = classMap[String(finalClassId)] || {};
-            return buildRow(e, event, {
-                eventId,
-                startTime: startTimes[userId] || startTimesByReg[regNo] || "",
-                startNumber: startNumbers[userId] || startNumbersByReg[regNo] || "",
-                start: event.StartTime,
-                finalClassId,
-                finalClassDesc,
-                cls,
-                isRelay,
-                hasInstructions,
-                instructionsUrl,
-                hasPreliminaryParams,
-                preliminaryParamsUrl
-            });
-        });
-
-        const startListMap = {};
-        startListMap[eventId] = startData.length > 0;
-
-        renderResults(rows, startListMap);
-
-    } catch (err) {
-        console.error(err);
-        alert("Chyba při načítání");
-    }
-
-    setLoading(false);
-}
-
-// Inicializace: napojí event listenery, nastaví výchozí datový rozsah, načte historii vstupů
-window.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("loadBtn");
-    if (btn) btn.addEventListener("click", handleLoad);
-
-    const btn2 = document.getElementById("loadBtn2");
-    if (btn2) btn2.addEventListener("click", handleLoad);
-
-    const input = document.getElementById("mainInput");
-    input.addEventListener("keydown", (e) => {
+    const input = $("mainInput");
+    $("loadBtn").addEventListener("click", handleLoad);
+    $("loadBtn2").addEventListener("click", handleLoad);
+    input.addEventListener("keydown", e => {
         if (e.key === "Enter") {
             e.preventDefault();
-            btn?.click();
+            handleLoad();
         }
     });
-    const history = JSON.parse(localStorage.getItem("oInfoHistory") || "[]");
-    const select = document.getElementById("historySelect");
-
-    document.getElementById("includeUnofficial")
-        .addEventListener("change", loadEvents);
-
-    select.innerHTML = '<option value="">-- poslední hodnoty --</option>';
-
-    history.forEach(item => {
-        const opt = document.createElement("option");
-        opt.value = item;
-        opt.textContent = item;
-        select.appendChild(opt);
+    input.addEventListener("input", () => {
+        const val = input.value.trim().toUpperCase();
+        if (CLUB_RE.test(val)) clubsReady.then(() => selectClubByAbbr(val));
     });
 
+    $("clubSelect").addEventListener("change", e => {
+        const abbr = e.target.selectedOptions[0]?.dataset.abbr;
+        if (abbr) input.value = abbr;
+    });
+    $("historySelect").addEventListener("change", e => {
+        if (e.target.value) input.value = e.target.value;
+    });
 
+    // výchozí ruční období: dnes – konec roku
     const today = new Date();
-    const fromDate = today.toISOString().split("T")[0];
-    const d = new Date(today.getFullYear(), 11, 31);
+    $("dateFromInput").value = localIsoDate(today);
+    $("dateToInput").value = `${today.getFullYear()}-12-31`;
+    const customRadio = document.querySelector('input[name="period"][value="custom"]');
+    ["dateFromInput", "dateToInput"].forEach(id =>
+        $(id).addEventListener("change", () => { if (customRadio) customRadio.checked = true; }));
 
-    const endDate =
-        d.getFullYear() + "-" +
-        String(d.getMonth() + 1).padStart(2, "0") + "-" +
-        String(d.getDate()).padStart(2, "0");
+    document.querySelectorAll('input[name="period"]').forEach(radio => radio.addEventListener("change", loadEvents));
+    $("includeUnofficial").addEventListener("change", loadEvents);
 
-    document.getElementById("dateFromInput").value = fromDate;
-    document.getElementById("dateToInput").value = endDate;
-
-
-    document.getElementById("historySelect").addEventListener("change", function () {
-        if (this.value) {
-            document.getElementById("mainInput").value = this.value;
+    // „Tisk“, rozbalení závodů a „Rozbalit / Sbalit vše“ (delegovaná obsluha)
+    document.addEventListener("click", e => {
+        const printLink = e.target.closest("[data-print-event]");
+        if (printLink) {
+            e.preventDefault();
+            openStartListTab(printLink.dataset.printEvent);
+            return;
         }
-    });
-
-
-    document.getElementById("mainInput").addEventListener("input", function () {
-        const val = this.value.trim().toUpperCase();
-
-        if (!/^[A-Z]{3}$/.test(val)) return;
-
-        selectClubByAbbr(val);
-    });
-
-
-    document.getElementById("clubSelect").addEventListener("change", function () {
-        const selectedOption = this.selectedOptions[0];
-        if (!selectedOption) return;
-
-        const abbr = selectedOption.dataset.abbr;
-
-        if (abbr) {
-            document.getElementById("mainInput").value = abbr;
+        const toggle = e.target.closest("[data-toggle-event]");
+        if (toggle) {
+            toggleGroup(toggle.dataset.toggleEvent, toggle);
+            return;
         }
+        const action = e.target.closest("[data-group-action]");
+        if (action) setAllGroups(action.dataset.groupAction === "expand");
     });
 
     const urlInput = getInputFromUrl();
@@ -1606,4 +956,11 @@ window.addEventListener("DOMContentLoaded", () => {
         input.dispatchEvent(new Event("input"));
         handleLoad();
     }
-});
+}
+
+// modul se spouští až po načtení DOM (type="module" je odložený)
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+} else {
+    init();
+}

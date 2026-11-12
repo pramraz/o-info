@@ -28,10 +28,31 @@
       <h1>O-info - výpis přihlášek</h1>
       <button id="themeToggle" class="theme-toggle" title="Přepnout režim" aria-label="Přepnout světlý/tmavý režim">🌙</button>
     </header>
+
+    <!-- NOVINKY – celý blok (až po „KONEC NOVINEK“) lze kdykoli smazat -->
+    <style>
+      .news-box { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid #d32f2f; background: #fdecea; border-radius: 6px; font-size: 13px; line-height: 1.5; color: #222; }
+      .news-box strong { color: #c62828; }
+      .news-box ul { margin: 4px 0 0; padding-left: 18px; }
+      body.dark .news-box { background: #3a1f1f; color: #eee; }
+      body.dark .news-box strong { color: #ff8a80; }
+    </style>
+    <aside class="news-box" aria-label="Novinky">
+      <strong>🆕 Novinky:</strong>
+      <ul>
+        <li><b>Přihlášení podle rankingu</b> – klikni na rankingovou kategorii (H/D 20, 21): seřazení podle rankingu, PB, KS a koeficient závodu.</li>
+        <li><b>Rychlejší načítání</b>, hlavně u klubů – stahuje se jen to potřebné.</li>
+        <li><b>Rozbalovací řádky</b> – závody s více než 6 přihlášenými jsou sbalené, název závodu zůstává při rolování nahoře.</li>
+        <li>Opraveno hledání reg. čísel na konkrétní závod. U klubu se zobrazí i finále.</li>
+        <li>Nová <a href="/prihlasky/napoveda.html">podrobná nápověda</a>.</li>
+      </ul>
+    </aside>
+    <!-- KONEC NOVINEK -->
+
         <hr>
 <!-- MENU -->
     <nav class="main-nav">
-      <h3><a href="/projekty/index.html" class="nav-link">Další projekty</a></h3>
+      <h3><a href="/projekty/index.html" class="nav-link">Další projekty</a> &nbsp;|&nbsp; <a href="/prihlasky/napoveda.html" class="nav-link">Nápověda</a></h3>
     </nav>
 
     <hr>
@@ -52,9 +73,10 @@
       <div class="hint-note">
         <p>ℹ️ Stejný seznam lze otevřít i odkazem, např.:
         <code>https://o-info.cz/?SJC8102,SJC8351</code> nebo <code>https://o-info.cz/?SJC</code></p>
-        ℹ️ Startovní časy finálových závodů se zobrazují pouze při
-        výběru konkrétního závodu.
+        ℹ️ Finálové závody (bez vlastních přihlášek v ORIS) se u klubu zobrazí vždy,
+        u registračních čísel pouze při výběru konkrétního závodu.
       </div>
+      <p><a href="/prihlasky/napoveda.html" class="nav-link">Podrobná nápověda →</a></p>
     </details>
 
     <!-- HLAVNÍ VSTUP -->
@@ -123,6 +145,13 @@
     <div id="loading" style="display:none;">
       <span class="spinner"></span>
       Načítám data...
+    </div>
+
+    <!-- ROZBALENÍ ZÁVODŮ S VÍCE PŘIHLÁŠENÝMI -->
+    <div id="groupControls" class="group-controls" hidden>
+      Závody s více než 6 přihlášenými jsou sbalené:
+      <button type="button" class="link-button" data-group-action="expand">Rozbalit vše</button>
+      <button type="button" class="link-button" data-group-action="collapse">Sbalit vše</button>
     </div>
 
     <!-- HLAVNÍ TABULKA -->

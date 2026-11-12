@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <title>O-info – výpis přihlášek – Nápověda</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/prihlasky/css/styles.css">
+  <style>
+    .help-page { max-width: 960px; margin: 0 auto; line-height: 1.6; }
+    .help-page h2 { margin-top: 2rem; }
+    .help-page h3 { margin-top: 1.5rem; font-size: 1.15rem; }
+    .help-page table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1rem; }
+    .help-page th, .help-page td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; vertical-align: top; }
+    .help-page td:first-child { white-space: nowrap; }
+    .help-page code { background: rgba(127,127,127,0.15); padding: 1px 4px; border-radius: 4px; }
+    .help-page .note { border-left: 4px solid #f0ad4e; background: rgba(240,173,78,0.12); padding: 8px 14px; margin: 1rem 0; }
+    .help-page details.tech > summary { cursor: pointer; font-size: 1.4rem; font-weight: 600; margin: 2rem 0 0.5rem; }
+    .back-link { margin-left: auto; }
+    body.dark .help-page th, body.dark .help-page td { border-color: #444; }
+  </style>
+  <script>
+    // stejné téma jako na hlavní stránce
+    try {
+      var t = localStorage.getItem("theme");
+      if (t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+        document.documentElement.classList.add("dark-pending");
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+<script>if (document.documentElement.classList.contains("dark-pending")) document.body.classList.add("dark");</script>
+<div class="container help-page">
+  <header class="app-header">
+    <a class="home-logo" href="/" aria-label="Přejít na hlavní stránku O-info">
+      <img src="/o-info-logo-pruhledne.png" alt="O-info logo" width="48" height="48">
+    </a>
+    <h1>O-info – výpis přihlášek: nápověda</h1>
+    <a class="nav-link back-link" href="/">← Zpět na výpis</a>
+  </header>
+  <hr>
+
+  <h2>Co aplikace dělá</h2>
+  <p>Z ORISu vypíše přihlášky na závody pro zadané závodníky nebo celý klub. U každého závodníka ukáže kategorii, startovní čas, parametry tratě a odkazy na pokyny, startovku a mapu. Data se čtou přímo z ORISu, takže jsou vždy aktuální.</p>
+
+  <h2>Jak zadat, koho hledat</h2>
+  <table>
+    <tr><th>Zadání</th><th>Příklad</th><th>Co se vypíše</th></tr>
+    <tr><td><b>Registrační číslo</b></td><td><code>SJC8102</code></td><td>Přihlášky jednoho závodníka.</td></tr>
+    <tr><td><b>Více reg. čísel</b></td><td><code>SJC8102,SJC8351</code></td><td>Přihlášky všech uvedených (oddělte čárkou, mezery nevadí).</td></tr>
+    <tr><td><b>Zkratka klubu</b></td><td><code>SJC</code></td><td>Všechny přihlášky klubu. Klub lze vybrat i z roletky.</td></tr>
+  </table>
+  <ul>
+    <li>Roletka <b>poslední hodnoty</b> nabízí 5 posledních hledání.</li>
+    <li>Stačí stisknout <b>Enter</b> nebo tlačítko <b>Načíst</b>.</li>
+  </ul>
+
+  <h3>Odkaz na výpis</h3>
+  <p>Hledání jde uložit jako záložku nebo poslat odkazem, výpis se po otevření sám načte:</p>
+  <ul>
+    <li><code>https://o-info.cz/?SJC8102,SJC8351</code> – vybraní závodníci</li>
+    <li><code>https://o-info.cz/?SJC</code> – celý klub</li>
+  </ul>
+  <p>Odkaz použije výchozí období (následujících 30 dní).</p>
+
+  <h2>Období a výběr závodu („Upřesnit výběr“)</h2>
+  <table>
+    <tr><th>Volba</th><th>Význam</th></tr>
+    <tr><td>Následujících 30 dní</td><td>Výchozí. Přihlášky na všechny závody od dneška na 30 dní.</td></tr>
+    <tr><td>Od – do</td><td>Přihlášky ve zvoleném období. Volba se zapne sama, jakmile změníte datum.</td></tr>
+    <tr><td>Konkrétní závod – z následujících 30 dní / z celého roku</td><td>Vyberte závod z roletky. Vypíší se jen přihlášky na něj.</td></tr>
+    <tr><td>Načíst i neoficiální</td><td>Do roletky přidá i závody mimo oficiální kalendář. Neoficiální závody jsou šedě.</td></tr>
+  </table>
+
+  <h2>Co je ve výpisu</h2>
+  <p>Závody jsou seřazené podle data. U každého závodu jsou pod sebou jeho závodníci, seřazení podle startovního času.</p>
+  <h3>Závody s mnoha přihlášenými</h3>
+  <p>Závod s <b>více než 6 přihlášenými</b> se zobrazí <b>sbalený</b> na jeden řádek (např. „▸ 48 přihlášených – zobrazit“), aby byl celý výpis přehledný.</p>
+  <ul>
+    <li>Závodníky zobrazíte šipkou na začátku řádku nebo kliknutím na text s počtem.</li>
+    <li>U rozbaleného závodu zůstává datum, název a odkazy při rolování nahoře, dokud nedojedete na konec jeho závodníků.</li>
+    <li>Po sbalení se stránka vrátí na začátek závodu.</li>
+    <li>Tlačítky <b>Rozbalit vše</b> a <b>Sbalit vše</b> nad výpisem přepnete všechny závody najednou.</li>
+    <li>Stejně to funguje v kartách na mobilu.</li>
+  </ul>
+  <table>
+    <tr><th>Sloupec</th><th>Význam</th></tr>
+    <tr><td>Název závodu</td><td>Odkaz na závod v ORISu.</td></tr>
+    <tr><td>Kde</td><td>Ikona Mapy.com, která otevře mapu s místem závodu (pokud ho pořadatel zadal).</td></tr>
+    <tr><td>Poř. (obl.)</td><td>Pořádající klub a oblast.</td></tr>
+    <tr><td>Disc.</td><td>Disciplína podle ORISu (např. SP = sprint, MD = krátká trať, LD = klasická trať, RE = štafety, ET = etapový závod).</td></tr>
+    <tr><td>Start 00</td><td>Čas startu 00.</td></tr>
+    <tr><td>Jméno</td><td>Za jménem je v závorce startovní číslo, pokud ho pořadatel přidělil.</td></tr>
+    <tr><td>Kat.</td><td>Kategorie. Když pořadatel závodníka přeřadil, zobrazí se <i>původní → nová</i>. U rankingových kategorií (H/D 20, H/D 21 vč. podkategorií) na závodě, který se započítává do rankingu, je kategorie odkazem na <b>přihlášené podle rankingu</b> (viz níže).</td></tr>
+    <tr><td>Reg., SI</td><td>Registrační číslo a číslo čipu. U štafet se nezobrazují.</td></tr>
+    <tr><td>St. čas</td><td>Startovní čas, jakmile je zveřejněná startovka. Je to odkaz na startovku dané kategorie.</td></tr>
+    <tr><td>Parametry</td><td>Délka tratě, převýšení a počet kontrol, pokud je pořadatel zveřejnil.</td></tr>
+    <tr><td>Detail</td><td>Odkazy podle toho, co je k závodu k dispozici:
+      <ul>
+        <li><b>Pokyny</b>,</li>
+        <li><b>Parametry</b> (předběžné parametry tratí),</li>
+        <li><b>Soupisky</b> u štafet,</li>
+        <li><b>Tisk</b> – stránka k vytištění se startovními časy a parametry tratí vybraných závodníků a s prázdnými řádky na vzdálenosti z parkoviště, na start a z cíle.</li>
+      </ul>
+    </td></tr>
+  </table>
+  <ul>
+    <li>Na mobilu se místo tabulky zobrazí <b>karty</b> se stejnými údaji.</li>
+    <li>Tlačítkem 🌙 / ☀️ přepnete světlý a tmavý režim.</li>
+  </ul>
+
+  <h2>Přihlášení podle rankingu</h2>
+  <p>Kliknutím na rankingovou kategorii se otevře stránka se závodem, údaji o rankingu a seznamem závodníků kategorie seřazeným podle rankingu. Odkaz je aktivní jen u OB závodů, které se do rankingu započítávají, a jen v kategoriích H20, H21, D20, D21 (vč. podkategorií E, A, B, C).</p>
+  <ul>
+    <li><b>Lesní nebo sprintový ranking</b> se volí podle disciplíny: sprint a knock-out sprint mají sprintový, ostatní lesní.</li>
+    <li><b>Rozhodné datum</b> je den, podle jehož stavu rankingu se závodníci řadí do podkategorií. Seznam je seřazený podle stavu k tomuto datu.</li>
+    <li><b>Koeficient (KZ)</b> je koeficient závodu.</li>
+    <li><b>PB</b> je průměr 4 nejvyšších rankingových čísel závodníků (podle stavu k poslednímu dni měsíce před závodem), kteří se závodu zúčastnili.
+      <ul>
+        <li>Po zveřejnění výsledků se počítá z těch, kdo závod dokončili.</li>
+        <li>Před závodem jde o odhad z přihlášených.</li>
+        <li>Závodníci započtení do PB jsou v seznamu označení ★.</li>
+      </ul>
+    </li>
+    <li><b>KS</b> je faktor startu: 0,15 pro hromadný start, 0,00 pro intervalový a handicapový.</li>
+    <li>V seznamu je pořadí v rankingu, rankingové číslo a body.
+      <ul>
+        <li>Rankingové číslo vstupuje do PB.</li>
+        <li>Body jsou součet 5 nejlepších výsledků.</li>
+        <li>Závodníci mimo ranking (např. cizinci) jsou na konci.</li>
+      </ul>
+    </li>
+    <li>Pokud je zveřejněná startovka, vychází seznam z ní, takže respektuje přeřazení do podkategorií. Jinak vychází z přihlášek.</li>
+  </ul>
+  <p>Stránka se otevře ve stejné záložce. Zpět na výpis se vrátíte tlačítkem Zpět v prohlížeči nebo odkazem „← Výpis přihlášek“.</p>
+  <p>Pravidla stanoví Soutěžní řád soutěží sekce OB, kapitola V. Nasazovací žebříčky.</p>
+
+  <h2>Na co si dát pozor</h2>
+  <div class="note">
+    <ul>
+      <li><b>Finálové závody</b> nemají v ORISu vlastní přihlášky, závodníci jsou jen ve startovce:
+        <ul>
+          <li>u <b>klubu</b> se zobrazí vždy,</li>
+          <li>u <b>registračních čísel</b> jen při výběru konkrétního závodu.</li>
+        </ul>
+      </li>
+      <li><b>Štafety:</b> u klubu se vypíší přihlášené týmy, u registračních čísel jednotliví závodníci. Složení týmů najdete pod odkazem Soupisky.</li>
+      <li>Startovní časy, parametry a pokyny se objeví, až je pořadatel v ORISu zveřejní.</li>
+    </ul>
+  </div>
+
+  <h2>Soukromí</h2>
+  <p>Aplikace neukládá žádné osobní údaje. V prohlížeči si pamatuje 5 posledních hledání a zvolený režim zobrazení. Aby se zbytečně nezatěžoval ORIS, ukládá si také veřejná data, která se mění zřídka: seznam klubů, detaily závodů a seznam závodů do roletky. Přihlášky, startovky a výsledky se stahují vždy čerstvé. Server si dočasně ukládá jen veřejný export rankingu z ORIS.</p>
+
+  <details class="tech">
+    <summary>Pro administrátora (technické podrobnosti)</summary>
+
+    <h3>Soubory</h3>
+    <table>
+      <tr><td><code>/index.html</code></td><td>Stránka výpisu (kořen webu). Obsahuje i rozbalovací stručnou nápovědu a Google Analytics.</td></tr>
+      <tr><td><code>/prihlasky/js/main.js</code></td><td>Logika výpisu, načítá se jako modul (<code>type="module"</code>).</td></tr>
+      <tr><td><code>/prihlasky/js/oris-cache.js</code></td><td>Volání ORIS API a cache v prohlížeči. Používá ho <code>main.js</code> i <code>ranking.js</code>.</td></tr>
+      <tr><td><code>/prihlasky/css/styles.css</code></td><td>Styly včetně tmavého režimu. Používá je i stránka Projekty.</td></tr>
+      <tr><td><code>/prihlasky/napoveda.html</code></td><td>Tato nápověda.</td></tr>
+      <tr><td><code>/prihlasky/README.md</code></td><td>Stejný obsah ve formátu Markdown.</td></tr>
+      <tr><td><code>/prihlasky/data/</code></td><td>Ikona Mapy.com.</td></tr>
+      <tr><td><code>/prihlasky/ranking.html</code> + <code>js/ranking.js</code></td><td>Stránka „přihlášení podle rankingu“ (<code>?event=&lt;ID závodu&gt;&amp;class=&lt;ID nebo název kategorie&gt;</code>).</td></tr>
+      <tr><td><code>/prihlasky/ranking.php</code></td><td>Serverový prostředník pro <code>ranking_export</code> z ORIS (viz níže).</td></tr>
+    </table>
+    <p>Výpis přihlášek volá veřejné ORIS API přímo z prohlížeče. Jedinou serverovou částí je <code>ranking.php</code>: vyžaduje PHP 8.1 a novější s rozšířeními <code>curl</code> a <code>mbstring</code>, stejně jako dluhy.</p>
+
+    <h3>Ranking (<code>ranking.php</code>, <code>ranking.js</code>)</h3>
+    <ul>
+      <li><b>Proč prostředník:</b> <code>https://oris.ceskyorientak.cz/ranking_export?date=…&amp;sport=1&amp;gender=M|F&amp;ranktype=2|8&amp;csv=1</code> neposílá hlavičku CORS, takže ho prohlížeč nesmí stáhnout přímo (API ji posílá).</li>
+      <li><b>Vstup a výstup:</b> <code>ranking.php?date=YYYY-MM-DD&amp;gender=M|F&amp;ranktype=2|8</code> ověří parametry, stáhne CSV (<code>Poradi;Prijmeni;Jmeno;Reg. c.;Body;Rank.c;…</code>) a vrátí JSON <code>{items:[{rank, lastName, firstName, regNo, points, rankNumber}]}</code>.</li>
+      <li><b>Cache</b> je v <code>sys_get_temp_dir()/oinfo_ranking/</code>, tedy mimo web. Stav k minulému datu se drží 30 dní, k dnešnímu nebo budoucímu 6 hodin. Při výpadku ORIS se vrátí i starší cache.</li>
+      <li><b>Typ rankingu:</b> disciplína <code>SP</code> nebo <code>KO</code> → 8 (sprintový), jinak 2 (lesní). Pohlaví podle kategorie: H/M → M, D/W → F.</li>
+      <li><b>Data:</b>
+        <ul>
+          <li>Seznam se řadí podle stavu k <code>RankingDecisionDate</code>. Když chybí, použije se poslední den měsíce před závodem.</li>
+          <li>PB se počítá ze stavu k poslednímu dni měsíce před závodem (rankingové číslo <code>Rank.c</code>).</li>
+          <li>Když se obě data shodují, stáhne se ranking jen jednou.</li>
+        </ul>
+      </li>
+      <li><b>Závodníci:</b> <code>getEventStartLists</code> s <code>classid</code>, a když je prázdná, <code>getEventEntries</code> s <code>classid</code>. PB z výsledků (<code>getEventResults</code> s <code>classid</code>) bere jen dokončivší, tedy bez DISK, DNS, DNF a MP.</li>
+      <li><b>Odkaz ve výpisu</b> (<code>buildClassHtml</code> v <code>main.js</code>) je aktivní jen pro sport OB, <code>Ranking = 1</code>, neštafetovou disciplínu a kategorii <code>^[HDMW]2</code>. Přeřazený závodník má odkaz u původní i nové kategorie.</li>
+      <li><b>Nahrazuje</b> dřívější odkaz na o-tools.rouman.eu, který přestal fungovat.</li>
+    </ul>
+
+    <h3>Průběh načtení podle režimu</h3>
+    <table>
+      <tr><th>Režim</th><th>Volání ORIS</th></tr>
+      <tr><td>Reg. čísla + období</td><td>
+        <ol>
+          <li><code>getUser</code> pro každé reg. číslo.</li>
+          <li><code>getUserEventEntries</code> pro každého závodníka v daném období.</li>
+          <li>Pro každý nalezený závod <code>getEvent</code> a <code>getEventStartLists</code> filtrovaný podle <code>clubid</code> závodníků.</li>
+        </ol>
+      </td></tr>
+      <tr><td>Reg. čísla + závod</td><td>
+        <ol>
+          <li><code>getEvent</code>, celá <code>getEventStartLists</code> a <code>getUser</code>.</li>
+          <li><code>getUserEventEntries</code> jen ke dni závodu. Funguje i pro štafety a etapy.</li>
+          <li>Když přihlášky chybí, vezmou se závodníci ze startovky (finále).</li>
+        </ol>
+      </td></tr>
+      <tr><td>Klub + období</td><td>
+        <ol>
+          <li><code>getEventList</code> s parametry <code>all=1</code> a <code>myClubId</code>. Dál se pracuje jen se závody, kde má klub přihlášky (<code>ClubEntryCount</code>) nebo startující (<code>ClubStartCount</code>).</li>
+          <li>Pro každý takový závod <code>getEventEntries</code>, <code>getEvent</code> a <code>getEventStartLists</code>, vše s <code>clubid</code>.</li>
+        </ol>
+      </td></tr>
+      <tr><td>Klub + závod</td><td>
+        <ol>
+          <li><code>getEventEntries</code> s <code>clubid</code>, <code>getEvent</code> a celá startovka.</li>
+          <li>Pro finále se ze startovky vyberou závodníci klubu (podle <code>ClubID</code> nebo začátku reg. čísla).</li>
+        </ol>
+      </td></tr>
+    </table>
+    <ul>
+      <li>Souběžně běží nejvýš <code>MAX_CONCURRENCY</code> (6) požadavků.</li>
+      <li>Každá odpověď se kontroluje (HTTP i <code>Status</code>).</li>
+      <li>Nedostupná startovka není chyba, jen se nezobrazí startovní časy.</li>
+      <li>„Tisk“ použije startovku z posledního načtení a znovu ji nestahuje.</li>
+    </ul>
+
+    <h3>Sbalování závodů</h3>
+    <ul>
+      <li>Práh určuje <code>COLLAPSE_THRESHOLD</code> (6) v <code>main.js</code>. Text nad výpisem v <code>index.html</code> („více než 6“) je potřeba při změně upravit také.</li>
+      <li>Každý závod je samostatný <code>&lt;tbody&gt;</code>, takže rozbalení překreslí jen jeho řádky a kartu.</li>
+      <li>Stav rozbalení je v paměti (<code>expandedEvents</code>) a po novém hledání se vynuluje.</li>
+      <li>„Přilepení“ údajů o závodu: <code>.sticky-cell { position: sticky }</code> uvnitř buněk s <code>rowspan</code>. Tabulka proto má <code>overflow: clip</code> místo <code>hidden</code>, protože <code>hidden</code> by sticky vypnul. Starší prohlížeče bez <code>clip</code> použijí <code>hidden</code> a jen se nepřilepí.</li>
+    </ul>
+
+    <h3>Úložiště prohlížeče</h3>
+    <ul>
+      <li><code>oInfoHistory</code> – 5 posledních hledání.</li>
+      <li><code>theme</code> – světlý nebo tmavý režim.</li>
+      <li><code>oInfoCache:v2:&lt;metoda&gt;?&lt;parametry&gt;</code> – cache odpovědí ORIS (<code>oris-cache.js</code>), viz tabulka.</li>
+    </ul>
+    <table>
+      <tr><th>Data</th><th>Platnost</th><th>Poznámka</th></tr>
+      <tr><td><code>getCSOSClubList</code></td><td>1 den</td><td>Jen ID, zkratka a název klubu. Mění se jen na začátku sezóny, změna se projeví nejpozději druhý den.</td></tr>
+      <tr><td><code>getUser</code> (reg. č. → ID)</td><td>1 den</td><td>Nové reg. číslo po přestupu je jiný klíč, takže se načte hned. Neexistující reg. číslo se drží jen 10 minut.</td></tr>
+      <tr><td><code>getEvent</code></td><td>10 min (dnešní a budoucí) / 1 den (proběhlý)</td><td>Zmenšený na používaná pole: kategorie s parametry tratí, dokumenty, ranking, místo a GPS. Sdílí se mezi výpisem a stránkou rankingu.</td></tr>
+      <tr><td><code>getEventList</code> (roletka)</td><td>30 min</td><td>Jen pole potřebná pro výběr.</td></tr>
+      <tr><td>přihlášky, startovky, výsledky, <code>getEventList</code> s <code>myClubId</code></td><td>necachuje se</td><td>Vždy aktuální.</td></tr>
+    </table>
+    <ul>
+      <li>Při startu se mažou prošlé položky a klíče starších verzí (<code>eventListCache_*</code>, <code>oInfoEventListCache</code>, <code>oInfoCache:v1:</code>).</li>
+      <li>Při plném úložišti se smaže starší polovina cache.</li>
+      <li>Stejné souběžné dotazy se spojí do jednoho.</li>
+      <li>Změna formátu cache = zvýšit verzi v <code>CACHE_PREFIX</code>.</li>
+      <li>Chyba úložiště (plné, soukromý režim) funkci nenaruší, jen se necachuje.</li>
+      <li>Ověřeno (klub SJC, 2 týdny): 2. hledání 45 dotazů místo 67. Reg. čísla po hledání klubu 9 → 6 dotazů. Konkrétní závod 3 dotazy.</li>
+    </ul>
+
+    <h3>Ověřeno proti ORIS (11/2026, původní vs. nová verze)</h3>
+    <table>
+      <tr><th>Zadání</th><th>Původní</th><th>Nová</th></tr>
+      <tr><td>2 reg. čísla, období</td><td>11 řádků, 1 097 kB</td><td>11 řádků (shodné), 300 kB</td></tr>
+      <tr><td>Reg. čísla + konkrétní závod / štafeta</td><td>chyba „Chyba při načítání“</td><td>funguje</td></tr>
+      <tr><td>Klub + konkrétní závod</td><td>7 řádků</td><td>7 řádků (shodné)</td></tr>
+      <tr><td>Klub, 2 týdny</td><td>284 řádků, 101 dotazů, 3 MB</td><td>284 řádků, 68 dotazů, 0,7 MB</td></tr>
+    </table>
+
+    <h3>Změny oproti původní verzi</h3>
+    <ul>
+      <li><b>Opraveno:</b>
+        <ul>
+          <li>režim reg. čísla + konkrétní závod nefungoval (nedefinovaná proměnná),</li>
+          <li>posun dat o den kvůli UTC (rok začínal 31. 12., ranking datum),</li>
+          <li>cache závodů se ukládala pod stále novým klíčem a mohla zaplnit úložiště,</li>
+          <li>data z ORIS se vkládala do stránky neescapovaná,</li>
+          <li>u nevybraného závodu se nic nestalo.</li>
+        </ul>
+      </li>
+      <li><b>Zrychleno:</b>
+        <ul>
+          <li>u klubu se nestahují přihlášky ze všech závodů (filtr <code>myClubId</code>),</li>
+          <li>startovky jsou filtrované podle klubu (u ČP 14 kB místo 327 kB),</li>
+          <li>počet souběžných požadavků je omezený,</li>
+          <li>celý rok je jeden dotaz místo dvanácti.</li>
+        </ul>
+      </li>
+      <li><b>Nové:</b> finále u klubu i ve výpisu za období, kontrola zadaného období, historie se obnoví hned.</li>
+      <li>Záloha původní verze: <code>/_backup_2026-11-12/prihlasky/</code> a <code>index_root.html</code>.</li>
+    </ul>
+  </details>
+</div>
+</body>
+</html>
